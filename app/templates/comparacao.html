@@ -14,6 +14,15 @@
         </div>
         <p class="subtitulo">Evolução das notas mês a mês. <a href="/minhas-avaliacoes">Ver histórico completo</a></p>
 
+        {% if meses %}
+        <div style="margin: 4px 0 18px;">
+            <a href="/comparar/{{ tecnico }}/exportar-excel{% if request.query_params.get('sup') %}?sup={{ request.query_params.get('sup') }}{% endif %}"
+               class="botao botao-dourado" style="margin-top:0;">
+                ⬇ Baixar em Excel
+            </a>
+        </div>
+        {% endif %}
+
         {% if not meses %}
             <p>Ainda não há avaliações deste técnico para mostrar evolução.</p>
         {% elif meses|length == 1 %}
@@ -27,11 +36,19 @@
                 {% if crescimento is not none %}
                     <span class="crescimento-badge {{ 'up' if crescimento > 0 else ('down' if crescimento < 0 else '') }}">
                         {{ "▲" if crescimento > 0 else ("▼" if crescimento < 0 else "＝") }}
-                        {{ crescimento if crescimento >= 0 else -crescimento }} desde {{ meses[0] }}
+                        {{ crescimento if crescimento >= 0 else -crescimento }}
+                        {% if crescimento_percentual is not none %}
+                            ({{ "+" if crescimento_percentual >= 0 else "" }}{{ crescimento_percentual }}%)
+                        {% endif %}
+                        desde {{ meses[0] }}
                     </span>
                 {% endif %}
             </div>
-            <canvas id="graficoEvolucao" height="90"></canvas>
+            <div class="cartao-grafico-scroll">
+                <div id="graficoWrap">
+                    <canvas id="graficoEvolucao"></canvas>
+                </div>
+            </div>
         </div>
         {% endif %}
 
@@ -73,6 +90,19 @@
         const labels = {{ labels_grafico|safe }};
         const valores = {{ valores_grafico|safe }};
 
+        // A partir de um certo número de meses, o gráfico deixa de espremer
+        // os pontos e passa a rolar para o lado (largura mínima por mês),
+        // igual à tabela logo abaixo.
+        // Só ativa a rolagem quando os meses não couberem no espaço
+        // disponível do card. Com poucos meses, o gráfico continua
+        // esticando 100% da largura, como antes.
+        const larguraPorMes = 70;
+        const scrollBox = document.querySelector('.cartao-grafico-scroll');
+        const wrap = document.getElementById('graficoWrap');
+        const larguraDisponivel = scrollBox.clientWidth;
+        wrap.style.width = Math.max(larguraDisponivel, labels.length * larguraPorMes) + 'px';
+        wrap.style.height = '260px';
+
         new Chart(document.getElementById('graficoEvolucao'), {
             type: 'line',
             data: {
@@ -94,6 +124,7 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
                     tooltip: {

@@ -185,6 +185,41 @@ def gerar_xlsx_response(linhas, nome_arquivo: str, incluir_supervisor: bool):
     return _resposta_xlsx(wb, nome_arquivo)
 
 
+def gerar_xlsx_evolucao_response(tecnico: str, meses: list[str], itens: list[dict], media_valores: list, nome_arquivo: str):
+    """
+    Monta a planilha Excel (.xlsx) da tela de evolução/comparação: uma linha
+    por item avaliado, uma coluna por mês (igual à tabela mostrada na tela),
+    com a linha de "Média final" ao final. Cada novo mês só acrescenta uma
+    coluna nova — a planilha cresce para o lado, sem limite de meses.
+    """
+    cabecalho = ["Item"] + meses
+    wb, ws = _nova_planilha(cabecalho)
+
+    for item in itens:
+        linha = [item["rotulo"]]
+        for v in item["valores"]:
+            valor = v.get("valor")
+            linha.append(float(valor) if valor not in (None, "") else None)
+        ws.append(linha)
+
+    linha_media = ["Média final"] + [
+        float(v) if v not in (None, "") else None for v in media_valores
+    ]
+    ws.append(linha_media)
+
+    # Destaca a linha da média final, igual à tela.
+    ultima_linha = ws.max_row
+    fonte_media = Font(bold=True)
+    fundo_media = PatternFill(start_color="D8E8DC", end_color="D8E8DC", fill_type="solid")
+    for celula in ws[ultima_linha]:
+        celula.font = fonte_media
+        celula.fill = fundo_media
+
+    _ajustar_largura_colunas(ws, cabecalho)
+    ws.title = tecnico[:31] if tecnico else "Evolução"
+    return _resposta_xlsx(wb, nome_arquivo)
+
+
 def gerar_xlsx_completo_response(linhas: list[dict], nome_arquivo: str, incluir_supervisor: bool):
     """
     Monta a planilha Excel (.xlsx) completa: uma coluna para cada pergunta
@@ -1657,6 +1692,7 @@ def comparar_avaliacoes(request: Request, tecnico: str, sup: str | None = Query(
                 "request": request, "tecnico": tecnico_real,
                 "meses": [], "itens": [], "media_valores": [],
                 "labels_grafico": "[]", "valores_grafico": "[]", "crescimento": None,
+                "crescimento_percentual": None,
             },
         )
 
@@ -1668,9 +1704,12 @@ def comparar_avaliacoes(request: Request, tecnico: str, sup: str | None = Query(
     valores_grafico = json.dumps(valores_numericos)
 
     crescimento = None
+    crescimento_percentual = None
     validos = [v for v in valores_numericos if v is not None]
     if len(validos) >= 2:
         crescimento = round(validos[-1] - validos[0], 2)
+        if validos[0] not in (0, None):
+            crescimento_percentual = round((crescimento / validos[0]) * 100, 1)
 
     return templates.TemplateResponse(
         "comparacao.html",
@@ -1683,5 +1722,34 @@ def comparar_avaliacoes(request: Request, tecnico: str, sup: str | None = Query(
             "labels_grafico": labels_grafico,
             "valores_grafico": valores_grafico,
             "crescimento": crescimento,
+            "crescimento_percentual": crescimento_percentual,
         },
     )
+
+
+@app.get("/comparar/{tecnico}/exportar-excel")
+def exportar_comparacao_excel(request: Request, tecnico: str, sup: str | None = Query(default=None)):
+    supervisor_logado_nome = supervisor_logado(request)
+    if not supervisor_logado_nome:
+        return RedirectResponse("/login", status_code=303)
+
+    eh_coordenador = request.session.get("tipo") == "coordenador"
+    if eh_coordenador:
+        if not sup:
+            raise HTTPException(status_code=400, detail="Supervisor não informado.")
+        supervisor = sup
+        tecnico_real = tecnico
+    else:
+        supervisor = supervisor_logado_nome
+        tecnicos_permitidos = repositorio.listar_tecnicos_avaliados_pelo_supervisor(supervisor)
+        tecnico_real = repositorio.encontrar_tecnico(tecnico, tecnicos_permitidos)
+        if tecnico_real is None:
+            raise HTTPException(status_code=403, detail="Você não pode ver este técnico.")
+
+    lista_avaliacoes = repositorio.avaliacoes_do_tecnico(supervisor, tecnico_real)
+    if not lista_avaliacoes:
+        raise HTTPException(status_code=404, detail="Este técnico ainda não tem avaliações.")
+
+    meses, itens, media_valores = avaliacoes.montar_tabela_resumida(lista_avaliacoes)
+    nome_arquivo = f"evolucao_{tecnico_real}.xlsx".replace(" ", "_")
+    return gerar_xlsx_evolucao_response(tecnico_real, meses, itens, media_valores, nome_arquivo)

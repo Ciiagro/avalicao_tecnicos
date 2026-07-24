@@ -619,3 +619,9 @@ button:active, .botao:active { transform: translateY(0); }
 }
 .crescimento-badge.up { background: var(--verde-100); color: var(--verde-800); }
 .crescimento-badge.down { background: var(--terracota-100); color: var(--terracota-600); }
+
+/* ── Rolagem horizontal do gráfico de evolução quando há muitos meses ── */
+.cartao-grafico-scroll { overflow-x: auto; padding-bottom: 4px; }
+.cartao-grafico-scroll::-webkit-scrollbar { height: 8px; }
+.cartao-grafico-scroll::-webkit-scrollbar-thumb { background: var(--verde-600); border-radius: 8px; }
+.cartao-grafico-scroll::-webkit-scrollbar-track { background: var(--areia-100); border-radius: 8px; }
