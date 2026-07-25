@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Avaliação de {{ avaliacao.tecnico }}</title>
-    <link rel="stylesheet" href="/static/style.css?v=2">
+    <link rel="stylesheet" href="/static/style.css?v=3">
     <style>
         .so-imprimir { display: none; }
         /* Só aparece quando a pessoa manda imprimir / salvar em PDF */
@@ -55,6 +55,7 @@
 </head>
 <body>
     <div class="container">
+        <img src="/static/logo_sistema.png" alt="Logo" class="logo-institucional nao-imprimir">
         <div class="top-bar nao-imprimir">
             <h1>{{ avaliacao.tecnico }}</h1>
             <span style="display:flex; gap:16px; align-items:center;">

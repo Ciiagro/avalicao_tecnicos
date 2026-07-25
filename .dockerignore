@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+.env
+.git
+.gitignore
+.venv
+venv/
+*.sqlite3
+log.txt
+*.log
+tabela_supervisores.*
+Cadastro dos Técnicos.xlsx
+backup_avaliacoes_*/
+sistema-avaliacao/
