@@ -433,10 +433,13 @@ button:active, .botao:active { transform: translateY(0); }
     background: #fff;
 }
 .cartao-mes-label {
+    display: block;
+    width: 100%;
     font-family: 'Manrope', sans-serif;
     font-size: 1.1rem;
     font-weight: 800;
     color: var(--verde-900);
+    text-align: center;
 }
 .cartao-mes.sugerido {
     border-color: var(--dourado-500);
