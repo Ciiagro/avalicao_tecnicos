@@ -101,6 +101,24 @@ sql/
   migracao_nao_avaliar_tecnico.sql -> marcação "não avaliar este técnico neste mês"
 ```
 
+## Tabelas utilizadas (Postgres)
+
+| Tabela | O que guarda | Criada em |
+|---|---|---|
+| `usuarios_supervisores` | Login de cada usuário (supervisor ou coordenador), senha (hash) e se precisa trocar no próximo acesso | `sql/schema.sql` |
+| `avaliacoes_tecnicos` | Avaliação mensal de cada técnico (10 perguntas, nota 5–10, nota final) | `sql/schema.sql` |
+| `supervisores` | Cadastro de supervisores (ativo/inativo, dados complementares) | `sql/migracao_supervisores_tecnicos.sql` |
+| `tecnicos` | Cadastro de técnicos (ativo/inativo, dados complementares) | `sql/migracao_supervisores_tecnicos.sql` |
+| `tecnico_atividades` | Projeto(s)/atividade(s) e propriedades atendidas por técnico | `sql/migracao_supervisores_tecnicos.sql` |
+| `vinculo_tecnico` | Vínculo único do técnico: empresa, supervisor responsável, datas de início/fim, motivo de desvinculação | `sql/schema_vinculo_tecnico.sql` |
+| `configuracao_prazo_avaliacao` | Dia-limite padrão do mês para lançar avaliação | `sql/migracao_prazo_avaliacao.sql` |
+| `prazos_avaliacao_mes` | Prazo específico definido pelo coordenador para um mês de referência | `sql/migracao_prazo_avaliacao.sql` |
+| `autorizacoes_avaliacao_atrasada` | Liberação do coordenador para um supervisor lançar avaliação fora do prazo | `sql/migracao_prazo_avaliacao.sql` |
+| `solicitacoes_prazo_avaliacao` | Pedido do supervisor ao coordenador para reabrir o prazo de um mês | `sql/migracao_prazo_avaliacao.sql` |
+| `nao_avaliar_tecnico_mes` | Marcação "não avaliar este técnico neste mês" + motivo | `sql/migracao_nao_avaliar_tecnico.sql` |
+| `tecnico_empresa_legado`, `tecnico_supervisor_legado` | Tabelas antigas de vínculo (renomeadas, mantidas só como histórico/backup) | `sql/migracao_vinculo_unico.sql` |
+| `acompanhamento_mensal_visitas` | Base de visitas/orientações/propriedades — **não é criada por este projeto**, já existe no banco (`painel_ateg`) e alimenta o Ranking Geral e o Ranking dos Técnicos | (externa, pré-existente) |
+
 ## Scripts utilitários (raiz do projeto)
 
 Rodando com Docker, execute com `docker compose exec web python <script>.py ...`
