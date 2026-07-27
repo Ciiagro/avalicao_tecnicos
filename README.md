@@ -66,6 +66,10 @@ Cadastre os primeiros usuários (senha provisória, troca obrigatória no primei
 docker compose exec web python cadastrar_supervisor.py listar
 docker compose exec web python cadastrar_supervisor.py criar "Nome Exato Do Supervisor" login_desejado senha_provisoria
 
+<<<<<<< HEAD
+uvicorn app.main:app --port 8096 --reload
+uvicorn app.main:app --port 8000 --reload
+=======
 # Coordenador geral (acesso a tudo):
 docker compose exec web python cadastrar_coordenador.py "Nome do Coordenador" login_desejado senha_provisoria
 ```
@@ -78,6 +82,7 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
+>>>>>>> 82df4a31f8c8e282f04fe3c552fa64fd0bc2d25d
 
 ## Estrutura
 
@@ -130,5 +135,12 @@ Rodando com Docker, execute com `docker compose exec web python <script>.py ...`
 
 ## Próximos passos (ainda não incluídos aqui)
 
+<<<<<<< HEAD
+docker compose up --build
+http://localhost:8000
+
+https://avaliacao-tecnicos.onrender.com/login
+=======
 - Validação/homologação dos vínculos pelo coordenador antes de valerem
 - Avaliação e ranking de supervisores dentro do próprio sistema (hoje o Ranking Geral vive em painel separado)
+>>>>>>> 82df4a31f8c8e282f04fe3c552fa64fd0bc2d25d
