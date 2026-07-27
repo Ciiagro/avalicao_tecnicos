@@ -6,7 +6,7 @@ com dois perfis de acesso: **supervisor** e **coordenador geral**.
 ## Acesso em produção
 
 - Sistema: https://avaliacao-tecnicos.onrender.com/login
-- Ranking Geral (painel Streamlit, à parte): https://ranking-ateg-kczdjv73nkfmrq7w2nvfmn.streamlit.app/
+- Ranking Geral (painel Streamlit, à parte): https://ranking-ateg-kczdjv73nkfmrq7w2nvfmn.streamlit.app/ — **acesso protegido por senha**, peça à coordenação
 
 ## Funcionalidades
 
@@ -21,7 +21,7 @@ com dois perfis de acesso: **supervisor** e **coordenador geral**.
 - Cadastro e gestão de supervisores e técnicos, e dos vínculos entre eles
 - Acompanhamento, tela "Avaliação do Supervisor", de quem já lançou (ou ainda não) as avaliações do mês, com pendências e média
 - Ranking dos Técnicos e Relatório de técnicos
-- Acesso ao Ranking Geral (link acima)
+- Acesso ao Ranking Geral (link acima, agora protegido por senha)
 
 ## Como rodar localmente (Docker — forma padrão deste projeto)
 
