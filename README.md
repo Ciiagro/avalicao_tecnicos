@@ -45,7 +45,7 @@ uvicorn app.main:app --reload
 
                                                                                                      
 
-uvicorn app.main:app --port 8088 --reload
+uvicorn app.main:app --port 8096 --reload
 uvicorn app.main:app --port 8000 --reload
 
 http://localhost:8086/login
@@ -69,5 +69,8 @@ sql/schema.sql         -> tabelas novas: usuarios_supervisores, avaliacoes_tecni
 - Integração da nota da avaliação no ranking geral
 - Histórico/gráfico de evolução do técnico mês a mês
 
+
+docker compose up --build
+http://localhost:8000
 
 https://avaliacao-tecnicos.onrender.com/login
