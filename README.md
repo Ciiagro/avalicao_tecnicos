@@ -66,10 +66,6 @@ Cadastre os primeiros usuários (senha provisória, troca obrigatória no primei
 docker compose exec web python cadastrar_supervisor.py listar
 docker compose exec web python cadastrar_supervisor.py criar "Nome Exato Do Supervisor" login_desejado senha_provisoria
 
-<<<<<<< HEAD
-uvicorn app.main:app --port 8096 --reload
-uvicorn app.main:app --port 8000 --reload
-=======
 # Coordenador geral (acesso a tudo):
 docker compose exec web python cadastrar_coordenador.py "Nome do Coordenador" login_desejado senha_provisoria
 ```
@@ -82,7 +78,52 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
->>>>>>> 82df4a31f8c8e282f04fe3c552fa64fd0bc2d25d
+
+### Cheat-sheet: atualizar e rodar (Docker) num computador que já tem o projeto
+
+Sempre que alguém mandar uma atualização de código pro GitHub, faça isso em
+cada computador/notebook que já tem o projeto clonado:
+
+```bash
+# 1. Confirme que não tem nada importante pendente
+git status
+
+# 2. Puxe a atualização
+git pull origin main
+
+# 3. Confirme que chegou o commit certo (aparece no topo)
+git log --oneline -3
+```
+
+Depois, suba o Docker:
+
+```bash
+docker compose up --build
+```
+
+Se aparecer erro de **"container já existe" / "Conflict"**, remova o container antigo primeiro:
+
+```bash
+docker rm -f avaliacao_tecnicos_app
+docker compose up --build
+```
+
+Espere aparecer no log algo como `Application startup complete` (sem erro de
+conexão com banco). Depois, acesse no navegador:
+
+```
+http://127.0.0.1:8000/login
+```
+
+Para parar o container:
+
+```bash
+docker compose down
+```
+
+**Lembrete:** o `.env` **não vem** pelo Git (fica de fora por segurança) — em
+qualquer computador novo, copie o `.env` manualmente pra pasta do projeto
+antes de rodar, senão a aplicação trava tentando conectar no banco.
 
 ## Estrutura
 
@@ -135,12 +176,5 @@ Rodando com Docker, execute com `docker compose exec web python <script>.py ...`
 
 ## Próximos passos (ainda não incluídos aqui)
 
-<<<<<<< HEAD
-docker compose up --build
-http://localhost:8000
-
-https://avaliacao-tecnicos.onrender.com/login
-=======
 - Validação/homologação dos vínculos pelo coordenador antes de valerem
 - Avaliação e ranking de supervisores dentro do próprio sistema (hoje o Ranking Geral vive em painel separado)
->>>>>>> 82df4a31f8c8e282f04fe3c552fa64fd0bc2d25d
