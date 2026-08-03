@@ -21,6 +21,12 @@ app = FastAPI(title="Avaliação de Técnicos")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "troque-esta-chave"))
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+# URL do painel de Ranking de Performance (Streamlit) — link externo mostrado
+# no menu pros supervisores. Fica disponível em qualquer template via
+# {{ RANK_ATEG_URL }}, sem precisar passar em cada rota.
+RANK_ATEG_URL = "https://ranking-ateg-kczdjv73nkfmrq7w2nvfmn.streamlit.app/"
+templates.env.globals["RANK_ATEG_URL"] = RANK_ATEG_URL
 templates.env.filters["normalizar"] = repositorio.normalizar
 # Workaround: bug conhecido do Jinja2 no Python 3.14 quebra o cache interno
 # de templates (https://github.com/pallets/jinja/issues/2180).
@@ -387,6 +393,58 @@ def exportar_minhas_avaliacoes_completo(request: Request, mes: str | None = Quer
     linhas = repositorio.avaliacoes_completas_mes(mes_ref, supervisor=supervisor)
     nome_arquivo = f"minhas_avaliacoes_completo_{mes_ref.strftime('%Y-%m')}.xlsx"
     return gerar_xlsx_completo_response(linhas, nome_arquivo, incluir_supervisor=False)
+
+
+# ══════════════════════════════════════════════════════════
+# SUPERVISOR — "meu ranking geral": a mesma visão de ranking geral que
+# o coordenador vê (posição calculada entre TODOS os técnicos de TODOS
+# os supervisores), mas filtrada na exibição: o supervisor só enxerga as
+# linhas dos próprios técnicos (e a própria posição entre supervisores),
+# nunca o nome ou a nota de quem não é da equipe dele.
+# ══════════════════════════════════════════════════════════
+@app.get("/meu-ranking-geral")
+def meu_ranking_geral(request: Request, mes: str | None = Query(default=None)):
+    supervisor = supervisor_logado(request)
+    if not supervisor:
+        return RedirectResponse("/login", status_code=303)
+    if request.session.get("tipo") == "coordenador":
+        return RedirectResponse("/coordenador/ranking", status_code=303)
+
+    meses_disponiveis = lista_meses_para_template()
+
+    if not mes:
+        return templates.TemplateResponse(
+            "escolher_mes.html",
+            {
+                "request": request,
+                "supervisor": supervisor,
+                "meses_disponiveis": meses_disponiveis,
+                "destino": "/meu-ranking-geral",
+            },
+        )
+
+    mes_ref = resolver_mes_escolhido(mes)
+
+    # Ranking COMPLETO (todos os supervisores) — usado só pra calcular a
+    # posição de verdade. Nunca é passado inteiro pro template.
+    ranking_tecnicos_completo = repositorio.ranking_geral_tecnicos(mes_ref)
+
+    total_tecnicos_geral = len(ranking_tecnicos_completo)
+    meus_tecnicos_no_ranking = [
+        t for t in ranking_tecnicos_completo if t["supervisor"] == supervisor
+    ]
+
+    return templates.TemplateResponse(
+        "ranking_supervisor.html",
+        {
+            "request": request,
+            "supervisor": supervisor,
+            "mes_referencia": mes_ref.strftime("%m/%Y"),
+            "mes_valor": mes_ref.strftime("%Y-%m"),
+            "meus_tecnicos_no_ranking": meus_tecnicos_no_ranking,
+            "total_tecnicos_geral": total_tecnicos_geral,
+        },
+    )
 
 
 # ══════════════════════════════════════════════════════════

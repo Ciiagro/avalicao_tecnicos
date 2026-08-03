@@ -18,6 +18,11 @@
             <a href="/coordenador" class="aba-ativa">Visão geral</a>
             <a href="/coordenador/vinculos-tecnicos">Vínculos de técnicos</a>
             <a href="/coordenador/ranking">Ranking</a>
+            {% elif destino == '/meu-ranking-geral' %}
+            <a href="/">Técnicos da equipe</a>
+            <a href="/avaliacoes">Avaliação dos técnicos</a>
+            <a href="/meu-ranking-geral" class="aba-ativa">Meu ranking geral</a>
+            <a href="{{ RANK_ATEG_URL }}" target="_blank" rel="noopener">Ranking de Performance (visitas) ↗</a>
             {% else %}
             <a href="/">Técnicos da equipe</a>
             <a href="/avaliacoes" class="aba-ativa">Avaliação dos técnicos</a>
