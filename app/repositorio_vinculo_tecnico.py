@@ -81,6 +81,56 @@ JOIN tecnico_atividades ta ON ta.id_tecnico_responsavel = t.id_tecnico_responsav
 ORDER BY t.nome, ta.ultima_visita DESC NULLS LAST
 """
 
+# Versões DEDUPLICADAS POR NOME NORMALIZADO das duas consultas acima —
+# calculadas UMA VEZ só (não correlacionadas por vínculo). Existem pra
+# resolver o seguinte problema: as consultas originais fazem
+# "DISTINCT ON (tecnico)" usando o nome EXATO (raw). Se o mesmo técnico
+# tem duas grafias gravadas na origem (ex: espaço duplicado, acento
+# diferente — foi o que aconteceu com a Maria Vitória Mendes Cordeiro na
+# base de visitas), cada grafia sobrevive como uma linha própria aqui, e
+# na hora de fazer JOIN com vinculo_tecnico usando nome NORMALIZADO, as
+# duas linhas batem com o mesmo vínculo e duplicam a linha na tela.
+#
+# A tentação óbvia seria resolver isso trocando o LEFT JOIN por um LEFT
+# JOIN LATERAL (com LIMIT 1) direto nas consultas originais — MAS ISSO
+# TRAVA A TELA: o LATERAL faz o banco reprocessar essa consulta inteira
+# (que varre toda a tabela de visitas) uma vez PARA CADA vínculo, em vez
+# de uma vez só pra tabela toda. Com poucos vínculos não dá pra notar,
+# mas na tela "todos os supervisores" (centenas de vínculos) isso deixa a
+# página infinitamente carregando.
+#
+# Por isso a dedupe acontece aqui, ANTES do JOIN: agrupamos por nome
+# NORMALIZADO (não pelo raw) só uma vez, escolhendo 1 linha por pessoa —
+# e o JOIN final com vinculo_tecnico volta a ser um LEFT JOIN comum,
+# rápido, porque essa subconsulta já garante no máximo 1 resultado por
+# nome normalizado.
+QUERY_TODOS_TECNICOS_COM_VISITAS_DEDUP = f"""
+SELECT DISTINCT ON (lower(trim(regexp_replace(tecnico, '\\s+', ' ', 'g'))))
+    tecnico, primeira_visita, ultima_visita, projeto_consolidado, atividade, supervisor_atual
+FROM ({QUERY_TODOS_TECNICOS_COM_VISITAS}) x
+ORDER BY lower(trim(regexp_replace(tecnico, '\\s+', ' ', 'g'))), ultima_visita DESC NULLS LAST
+"""
+
+QUERY_CADASTRO_ATIVIDADES_DEDUP = f"""
+SELECT DISTINCT ON (lower(trim(regexp_replace(tecnico, '\\s+', ' ', 'g'))))
+    tecnico, projeto, atividade
+FROM ({QUERY_CADASTRO_ATIVIDADES}) x
+ORDER BY lower(trim(regexp_replace(tecnico, '\\s+', ' ', 'g')))
+"""
+
+# Mesma dedupe pro cadastro mestre (tabela "tecnicos" em si) — usada na
+# 3ª JOIN de listar_vinculos_do_supervisor/listar_vinculos_de_todos_os_supervisores.
+# Prioriza o cadastro ATIVO quando há mais de um; se nenhum for ativo (ou
+# mais de um ativo), prioriza o id mais recente — só pra ter um critério
+# determinístico, não some nenhum cadastro, só decide qual representa a
+# pessoa nesta tela.
+QUERY_CADASTRO_MESTRE_DEDUP = """
+SELECT DISTINCT ON (lower(trim(regexp_replace(nome, '\\s+', ' ', 'g'))))
+    id_tecnico_responsavel, nome, ativo, motivo_desativacao, data_desativacao
+FROM tecnicos
+ORDER BY lower(trim(regexp_replace(nome, '\\s+', ' ', 'g'))), ativo DESC NULLS LAST, id_tecnico_responsavel DESC
+"""
+
 
 def listar_vinculos_do_supervisor(supervisor: str):
     """
@@ -94,6 +144,14 @@ def listar_vinculos_do_supervisor(supervisor: str):
     cai pro cadastro mestre do técnico (tecnico_atividades) — é o que
     alimenta a lista de "Projetos" do supervisor, então mantém os dois
     lugares consistentes.
+
+    Os JOINs com as subconsultas (visitas, cadastro, tecnicos) usam as
+    versões DEDUPLICADAS POR NOME NORMALIZADO (*_DEDUP, ver comentário
+    junto delas) — garante no máximo 1 linha por vínculo mesmo que a
+    mesma pessoa tenha grafias diferentes na origem (foi o que aconteceu
+    com a Maria Vitória Mendes Cordeiro), sem precisar de LATERAL — que
+    parece a solução óbvia mas reprocessa a consulta pesada de visitas
+    uma vez por vínculo e trava a tela com mais dados.
     """
     engine = get_engine()
     query = f"""
@@ -108,9 +166,9 @@ def listar_vinculos_do_supervisor(supervisor: str):
             tm.id_tecnico_responsavel AS id_tecnico, tm.ativo AS tecnico_ativo,
             tm.motivo_desativacao AS tecnico_motivo_desativacao, tm.data_desativacao AS tecnico_data_desativacao
         FROM vinculo_tecnico v
-        LEFT JOIN ({QUERY_TODOS_TECNICOS_COM_VISITAS}) vis ON lower(trim(regexp_replace(vis.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
-        LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES}) cad ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
-        LEFT JOIN tecnicos tm ON lower(trim(regexp_replace(tm.nome, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN ({QUERY_TODOS_TECNICOS_COM_VISITAS_DEDUP}) vis ON lower(trim(regexp_replace(vis.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES_DEDUP}) cad ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN ({QUERY_CADASTRO_MESTRE_DEDUP}) tm ON lower(trim(regexp_replace(tm.nome, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
         WHERE v.supervisor = :supervisor
         ORDER BY (v.data_desvinculacao IS NULL) DESC, v.tecnico, v.data_inicio DESC;
     """
@@ -145,9 +203,9 @@ def listar_vinculos_de_todos_os_supervisores():
             tm.id_tecnico_responsavel AS id_tecnico, tm.ativo AS tecnico_ativo,
             tm.motivo_desativacao AS tecnico_motivo_desativacao, tm.data_desativacao AS tecnico_data_desativacao
         FROM vinculo_tecnico v
-        LEFT JOIN ({QUERY_TODOS_TECNICOS_COM_VISITAS}) vis ON lower(trim(regexp_replace(vis.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
-        LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES}) cad ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
-        LEFT JOIN tecnicos tm ON lower(trim(regexp_replace(tm.nome, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN ({QUERY_TODOS_TECNICOS_COM_VISITAS_DEDUP}) vis ON lower(trim(regexp_replace(vis.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES_DEDUP}) cad ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN ({QUERY_CADASTRO_MESTRE_DEDUP}) tm ON lower(trim(regexp_replace(tm.nome, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
         ORDER BY v.supervisor, (v.data_desvinculacao IS NULL) DESC, v.tecnico, v.data_inicio DESC;
     """
     with engine.connect() as conn:
@@ -327,7 +385,22 @@ def historico_tecnico(tecnico: str):
 
 
 def listar_todos_vinculos_ativos():
-    """Auditoria do coordenador: todos os vínculos ativos, de todos os supervisores."""
+    """
+    Auditoria do coordenador: todos os vínculos ativos, de todos os supervisores.
+
+    Os JOINs com as subconsultas de visitas/cadastro usam as versões
+    DEDUPLICADAS POR NOME NORMALIZADO (*_DEDUP, ver comentário junto
+    delas): garantem no máximo 1 linha por vínculo mesmo que o mesmo
+    técnico tenha grafias diferentes gravadas na base de visitas ou no
+    cadastro mestre (acento, espaço duplicado etc.) — foi o que
+    aconteceu com a Maria Vitória Mendes Cordeiro.
+
+    Importante: NÃO usar LEFT JOIN LATERAL aqui pra resolver isso, mesmo
+    parecendo mais direto — LATERAL reprocessa a subconsulta de visitas
+    (que varre a tabela toda) uma vez PARA CADA vínculo, e trava a tela
+    com o volume real de dados. A dedupe acontece antes, na subconsulta
+    em si, então o JOIN final continua um LEFT JOIN comum e rápido.
+    """
     engine = get_engine()
     query = f"""
         SELECT
@@ -338,8 +411,8 @@ def listar_todos_vinculos_ativos():
             v.data_inicio, v.data_fim_prevista,
             vis.primeira_visita, vis.ultima_visita
         FROM vinculo_tecnico v
-        LEFT JOIN ({QUERY_TODOS_TECNICOS_COM_VISITAS}) vis ON lower(trim(regexp_replace(vis.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
-        LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES}) cad ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN ({QUERY_TODOS_TECNICOS_COM_VISITAS_DEDUP}) vis ON lower(trim(regexp_replace(vis.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES_DEDUP}) cad ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
         WHERE v.data_desvinculacao IS NULL
         ORDER BY v.supervisor, v.tecnico;
     """
