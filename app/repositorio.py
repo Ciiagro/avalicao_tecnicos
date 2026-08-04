@@ -602,55 +602,43 @@ def recusar_solicitacao(solicitacao_id: int, coordenador: str) -> None:
 
 def tecnicos_do_supervisor_no_mes(supervisor: str, mes_ref: date):
     """
-    Técnicos deste supervisor no mês avaliado — UNIÃO de duas fontes:
+    Técnicos que este supervisor deve avaliar, para qualquer mês escolhido —
+    fonte ÚNICA: quem está ATIVO na equipe dele HOJE (vinculo_tecnico com
+    data_desvinculacao nula).
 
-      1) Quem teve VISITA registrada NESTE MÊS com este supervisor —
-         usa a coluna supervisor_atual da própria visita, que reflete
-         quem era o supervisor NAQUELE momento específico. Essa é a
-         fonte mais confiável e NÃO depende do técnico ter uma linha
-         cadastrada em vinculo_tecnico (muitos técnicos antigos nunca
-         foram migrados pra lá — ver migracao_vinculo_unico.sql).
+    NÃO usa mais nem visitas (acompanhamento_mensal_visitas) nem vínculo
+    histórico daquele mês específico: um técnico já desvinculado (ex:
+    Felipe, saiu em 30/07) não deve mais aparecer pendente de avaliação em
+    nenhum mês, mesmo que tenha sido da equipe dela naquele mês — só quem
+    está na equipe atual entra na lista, em qualquer mês que o supervisor
+    escolher avaliar.
 
-         A comparação do nome do supervisor é feita em Python com
-         normalizar() (não com "=" direto no SQL), porque o campo
-         supervisor_atual da visita pode vir com acentuação/espaço/
-         maiúscula diferente do nome salvo em usuarios_supervisores —
-         mesmo padrão já usado no resto do projeto (ver encontrar_tecnico).
+    Dedup por NOME NORMALIZADO (DISTINCT ON, não "DISTINCT tecnico" puro):
+    se o mesmo técnico tiver duas linhas de vínculo com grafias diferentes
+    (acento, espaço duplicado etc — foi o que aconteceu com "CLEYTON TORRES
+    DA SILVA" aparecendo 2x na tela do Gerlan), "DISTINCT tecnico" cru NÃO
+    dedupe, porque compara string exata. Aqui garante 1 linha por pessoa
+    independente de quantas grafias existam na base.
 
-      2) Quem estava com vínculo (ativo ou não) em vinculo_tecnico
-         durante mes_ref — cobre o técnico recém-vinculado sem visita
-         ainda, e quem foi transferido depois do mês avaliado.
+    mes_ref é mantido como parâmetro só por compatibilidade de assinatura
+    com quem chama esta função — não é mais usado para filtrar.
     """
     engine = get_engine()
-    alvo = normalizar(supervisor)
     with engine.connect() as conn:
-        rows_visitas = conn.execute(
+        rows_vinculo_ativo_hoje = conn.execute(
             text("""
-                SELECT DISTINCT tecnico_responsavel AS tecnico, supervisor_atual
-                FROM acompanhamento_mensal_visitas
-                WHERE dt_visita_v::date >= :mes_ref
-                  AND dt_visita_v::date < (:mes_ref + INTERVAL '1 month')
-                  AND tecnico_responsavel IS NOT NULL;
-            """),
-            {"mes_ref": mes_ref},
-        ).fetchall()
-        tecnicos_visitas = {
-            r.tecnico for r in rows_visitas if normalizar(r.supervisor_atual) == alvo
-        }
-
-        rows_vinculo = conn.execute(
-            text("""
-                SELECT DISTINCT tecnico
+                SELECT DISTINCT ON (lower(trim(regexp_replace(tecnico, '\\s+', ' ', 'g'))))
+                    tecnico
                 FROM vinculo_tecnico
                 WHERE supervisor = :supervisor
-                  AND data_inicio < (:mes_ref + INTERVAL '1 month')
-                  AND (data_desvinculacao IS NULL OR data_desvinculacao >= :mes_ref)
+                  AND data_desvinculacao IS NULL
+                ORDER BY lower(trim(regexp_replace(tecnico, '\\s+', ' ', 'g'))), tecnico
             """),
-            {"supervisor": supervisor, "mes_ref": mes_ref},
+            {"supervisor": supervisor},
         ).fetchall()
-        tecnicos_vinculo = {r.tecnico for r in rows_vinculo}
+        tecnicos_ativos_hoje = {r.tecnico for r in rows_vinculo_ativo_hoje}
 
-    return sorted(tecnicos_visitas | tecnicos_vinculo)
+    return sorted(tecnicos_ativos_hoje)
 
 
 def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):
@@ -659,14 +647,12 @@ def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):
     NO MÊS ESCOLHIDO (mes_ref) — usado depois que o supervisor seleciona
     o mês/ano na tela inicial e entra na tela dos técnicos.
 
-    IMPORTANTE: a lista é a UNIÃO de dois grupos —
-      1) quem teve visita nesse mês com esse supervisor (pelas visitas)
-      2) quem JÁ TEM avaliação lançada nesse mês por esse supervisor,
-         mesmo sem visita dentro do próprio mês (ex: técnico avaliado
-         que não visita há tempos, ou visita registrada com atraso)
-
-    Isso evita que um técnico já avaliado "suma" da lista/ranking só
-    porque a visita dele não caiu certinho dentro do mês.
+    A lista é a UNIÃO de dois grupos:
+      1) quem está ativo na equipe do supervisor HOJE (tecnicos_do_supervisor_no_mes)
+      2) quem JÁ TEM avaliação lançada nesse mês por esse supervisor, mesmo
+         que hoje não esteja mais na equipe dele (preserva o histórico —
+         uma avaliação já feita nunca desaparece da tela do mês em que foi
+         lançada, mesmo que o técnico saia da equipe depois)
 
     Cada técnico também carrega "nao_avaliar" (bool) e "observacao_nao_avaliar"
     — marcação feita pelo supervisor quando decide que aquele técnico não
