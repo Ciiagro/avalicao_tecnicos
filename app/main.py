@@ -736,10 +736,13 @@ def editar_vinculo_tecnico(
     data_fim_prevista: str | None = Form(None),
 ):
     """Edita só o início e o fim previsto do vínculo ativo — projeto e
-    atividade vêm da base de visitas e não são editáveis aqui."""
+    atividade vêm da base de visitas e não são editáveis aqui.
+    Restrito à coordenação — supervisor só visualiza o vínculo, não edita."""
     supervisor = supervisor_logado(request)
     if not supervisor:
         return RedirectResponse("/login", status_code=303)
+    if request.session.get("tipo") != "coordenador":
+        raise HTTPException(status_code=403, detail="Editar vínculo é restrito à coordenação.")
 
     repositorio_vinculo_tecnico.editar_datas_vinculo(
         vinculo_id=vinculo_id,
@@ -1317,11 +1320,12 @@ def editar_dados_cadastrais_tecnico_na_pagina(
 
     # Só quem é responsável pelo técnico agora ou o coordenador geral
     # pode editar os dados cadastrais dele.
-    vinculo_ativo = repositorio_vinculo_tecnico.obter_vinculo_ativo_do_tecnico(tecnico)
-    eh_meu = vinculo_ativo is not None and vinculo_ativo["supervisor"] == supervisor
+    # Dados cadastrais (RG, CPF, contato etc.) são restritos à coordenação —
+    # supervisor não deve nem ver nem editar esses dados do técnico, mesmo
+    # sendo o responsável atual por ele.
     eh_coordenador = request.session.get("tipo") == "coordenador"
-    if not (eh_meu or eh_coordenador):
-        raise HTTPException(status_code=403, detail="Sem permissão pra editar o cadastro deste técnico.")
+    if not eh_coordenador:
+        raise HTTPException(status_code=403, detail="Dados cadastrais são restritos à coordenação.")
 
     # O input type="month" do formulário manda "AAAA-MM" — completa com o
     # dia 01 pra virar uma data válida (guardamos só mês/ano mesmo).

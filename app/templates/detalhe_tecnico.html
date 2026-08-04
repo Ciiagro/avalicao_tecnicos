@@ -39,7 +39,9 @@
         </p>
 
         <h2>Dados cadastrais</h2>
-        {% if tecnico_cadastro %}
+        {% if not eh_coordenador %}
+        <p class="subtitulo">Dados cadastrais visíveis apenas para a coordenação.</p>
+        {% elif tecnico_cadastro %}
         <table style="width:100%; font-size:0.92rem; margin-bottom:18px;">
             <tr><td style="color:var(--texto-600); padding:6px 0; width:40%;">RG</td><td>{{ tecnico_cadastro.rg or "—" }}</td></tr>
             <tr><td style="color:var(--texto-600); padding:6px 0;">CPF</td><td>{{ tecnico_cadastro.cpf or "—" }}</td></tr>
@@ -52,9 +54,7 @@
             <tr><td style="color:var(--texto-600); padding:6px 0;">Capacitação metodológica</td><td>{{ tecnico_cadastro.mes_ano_capacitacao_metodologica.strftime("%m/%Y") if tecnico_cadastro.mes_ano_capacitacao_metodologica else "—" }}</td></tr>
             <tr><td style="color:var(--texto-600); padding:6px 0;">Modalidade da capacitação</td><td>{{ tecnico_cadastro.modalidade_capacitacao_metodologica or "—" }}</td></tr>
         </table>
-        {% if eh_meu or eh_coordenador %}
         <button type="button" class="botao" style="margin-bottom:18px;" onclick="document.getElementById('modal-editar-cadastro').showModal()">Editar cadastro</button>
-        {% endif %}
         {% else %}
         <p class="subtitulo">Este técnico ainda não tem registro na tabela de cadastro mestre.</p>
         {% endif %}
@@ -74,8 +74,8 @@
             {% if eh_meu %}
             <a class="botao botao-dourado" href="/avaliar/{{ tecnico }}">Avaliar técnico</a>
             {% endif %}
-            <button type="button" class="botao" onclick="document.getElementById('modal-editar-vinculo').showModal()">Editar vínculo</button>
             {% if eh_coordenador %}
+            <button type="button" class="botao" onclick="document.getElementById('modal-editar-vinculo').showModal()">Editar vínculo</button>
             <button type="button" class="botao" onclick="document.getElementById('modal-mudar-supervisor').showModal()">Desvincular Técnico</button>
             <button type="button" class="botao" onclick="document.getElementById('modal-desativar-tecnico').showModal()">Desativar Técnico</button>
             {% endif %}
@@ -157,8 +157,7 @@
         {% endif %}
     </div>
 
-    {% if tecnico_cadastro and (eh_meu or eh_coordenador) %}
-    <!-- Modal: editar dados cadastrais do técnico (tabela mestra 'tecnicos') -->
+    {% if tecnico_cadastro and eh_coordenador %}
     <dialog id="modal-editar-cadastro" style="border: none; border-radius: 14px; padding: 0; box-shadow: var(--sombra);">
         <form method="post" action="/tecnicos/{{ tecnico }}/cadastro/editar" style="padding: 24px 28px; min-width: 320px; max-width: 400px;">
             <h2 style="margin-top:0;">Editar cadastro</h2>
@@ -209,7 +208,7 @@
     </dialog>
     {% endif %}
 
-    {% if vinculo_ativo and (eh_meu or eh_coordenador) %}
+    {% if vinculo_ativo and eh_coordenador %}
     <!-- Modal: editar vínculo (só início e fim previsto — projeto/atividade vêm da base de visitas) -->
     <dialog id="modal-editar-vinculo" style="border: none; border-radius: 14px; padding: 0; box-shadow: var(--sombra);">
         <form method="post" action="/tecnicos/editar" style="padding: 24px 28px; min-width: 320px; max-width: 400px;">

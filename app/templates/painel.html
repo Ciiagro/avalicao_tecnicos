@@ -104,7 +104,7 @@
                         <a href="/comparar/{{ t.tecnico | urlencode }}" style="font-size:0.82rem; color:#5c6d63; text-decoration:none; font-weight:600;">📈 Evolução</a>
                         <a class="status avaliado" href="/minhas-avaliacoes/{{ t.avaliacao_id }}" style="text-decoration:none;">✔ Avaliado · ver detalhe</a>
                     {% else %}
-                        <a class="botao" href="/avaliar/{{ t.tecnico }}?mes={{ mes_valor }}" style="margin:0; padding:6px 16px;">Avaliar</a>
+                        <a href="/avaliar/{{ t.tecnico }}?mes={{ mes_valor }}" style="background:none; border:1px solid var(--verde-500); border-radius:6px; padding:6px 10px; font-size:0.78rem; cursor:pointer; color:var(--verde-700); font-weight:700; text-decoration:none; box-shadow:none; margin:0;">Avaliar</a>
                         <button type="button" onclick="document.getElementById('nao-avaliar-{{ loop.index }}').style.display='flex';" style="background:none; border:1px solid #c9c2b3; border-radius:6px; padding:6px 10px; font-size:0.78rem; cursor:pointer; color:#8a6d3b;">Não avaliar</button>
                     {% endif %}
                 </span>

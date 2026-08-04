@@ -134,12 +134,12 @@ button:active, .botao:active { transform: translateY(0); }
 }
 .escala-nota input { margin: 0; accent-color: var(--verde-600); }
 
-.lista-tecnicos { list-style: none; padding: 0; margin-top: 16px; }
+.lista-tecnicos { list-style: none; padding: 0; margin-top: 10px; }
 .lista-tecnicos li {
     display: flex; justify-content: space-between; align-items: center;
     gap: 16px;
     flex-wrap: nowrap;
-    padding: 14px 18px; border: 1px solid var(--borda); border-radius: 12px; margin-bottom: 10px;
+    padding: 9px 16px; border: 1px solid var(--borda); border-radius: 10px; margin-bottom: 5px;
     background: var(--areia-50);
     transition: box-shadow .15s ease, border-color .15s ease, transform .12s ease;
 }
@@ -158,6 +158,24 @@ button:active, .botao:active { transform: translateY(0); }
 .lista-tecnicos li > span:last-child a.botao,
 .lista-tecnicos li > span:last-child a[style*="font-size"] {
     white-space: nowrap;
+}
+/* Botões dentro da lista de técnicos (Avaliar, Não avaliar, Reverter,
+   chips de motivo, Confirmar) não devem herdar o margin-top:20px do
+   <button> global — aqui o alinhamento é feito pelo flex do container
+   pai (align-items:center), então margem extra só desalinha um botão
+   em relação ao outro na mesma linha. Também mais discretos aqui (menor,
+   sem sombra grande) — é uma lista densa, não precisa do mesmo peso
+   visual do botão principal de uma tela.
+*/
+.lista-tecnicos li button,
+.lista-tecnicos li a.botao {
+    margin: 0;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    box-shadow: none;
+}
+.lista-tecnicos li a.botao:hover {
+    box-shadow: 0 2px 6px rgba(45, 106, 79, 0.22);
 }
 
 .status { font-size: 0.78rem; padding: 4px 12px; border-radius: 20px; font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; }
