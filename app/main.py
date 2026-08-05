@@ -649,7 +649,21 @@ def tela_tecnicos_desvinculados(request: Request):
 
 
 @app.get("/tecnicos/{tecnico}")
-def tela_detalhe_tecnico(request: Request, tecnico: str):
+def tela_detalhe_tecnico(
+    request: Request,
+    tecnico: str,
+    aviso_pendencia_acao: str | None = Query(default=None),
+    aviso_pendencia_id_tecnico: int | None = Query(default=None),
+    aviso_pendencia_motivo: str | None = Query(default=None),
+    aviso_pendencia_meses: str | None = Query(default=None),
+    aviso_pendencia_vinculo_id: int | None = Query(default=None),
+    aviso_pendencia_tecnico: str | None = Query(default=None),
+    aviso_pendencia_data: str | None = Query(default=None),
+    aviso_pendencia_redirecionar: str | None = Query(default=None),
+    aviso_pendencia_novo_supervisor: str | None = Query(default=None),
+    aviso_pendencia_data_inicio: str | None = Query(default=None),
+    aviso_pendencia_data_fim_prevista: str | None = Query(default=None),
+):
     supervisor = supervisor_logado(request)
     if not supervisor:
         return RedirectResponse("/login", status_code=303)
@@ -668,6 +682,31 @@ def tela_detalhe_tecnico(request: Request, tecnico: str):
 
     eh_meu = vinculo_ativo is not None and vinculo_ativo["supervisor"] == supervisor
     eh_coordenador = request.session.get("tipo") == "coordenador"
+
+    # Aviso de pendência: veio de uma tentativa de desativar/desvincular
+    # bloqueada porque sobrava mês de avaliação sem lançar (ver rotas
+    # /tecnicos/{tecnico}/desativar e /tecnicos/desvincular). Monta os
+    # dados pro template desenhar o banner de confirmação, com os campos
+    # originais do formulário prontos pra reenviar com confirmação.
+    aviso_pendencia = None
+    if aviso_pendencia_acao and aviso_pendencia_meses:
+        meses_formatados = [
+            date.fromisoformat(m).strftime("%m/%Y") for m in aviso_pendencia_meses.split(",") if m
+        ]
+        aviso_pendencia = {
+            "acao": aviso_pendencia_acao,
+            "meses_formatados": meses_formatados,
+            "id_tecnico": aviso_pendencia_id_tecnico,
+            "motivo": aviso_pendencia_motivo,
+            "vinculo_id": aviso_pendencia_vinculo_id,
+            "tecnico_form": aviso_pendencia_tecnico,
+            "data_desvinculacao": aviso_pendencia_data,
+            "redirecionar_para": aviso_pendencia_redirecionar,
+            "novo_supervisor": aviso_pendencia_novo_supervisor,
+            "data_inicio": aviso_pendencia_data_inicio,
+            "data_fim_prevista": aviso_pendencia_data_fim_prevista,
+        }
+
     return templates.TemplateResponse(
         "detalhe_tecnico.html",
         {
@@ -683,6 +722,7 @@ def tela_detalhe_tecnico(request: Request, tecnico: str):
             "motivos": repositorio_vinculo_tecnico.MOTIVOS_DESVINCULACAO,
             "tecnico_cadastro": tecnico_cadastro,
             "motivos_desativacao_tecnico": repositorio.MOTIVOS_DESATIVACAO_TECNICO,
+            "aviso_pendencia": aviso_pendencia,
         },
     )
 
@@ -760,11 +800,16 @@ def mudar_supervisor_tecnico(
     novo_supervisor: str = Form(...),
     data_inicio: date = Form(...),
     data_fim_prevista: str | None = Form(None),
+    confirmar_apesar_de_pendencias: bool = Form(False),
 ):
     """Só o coordenador vê esse botão — troca o supervisor de um técnico
     em um único passo, mantendo projeto/atividade/empresa/CPF do vínculo atual.
     O motivo é sempre "Mudança de supervisor": é a única razão de existir
-    dessa ação (pra outros motivos de desvínculo, use "Desativar Técnico")."""
+    dessa ação (pra outros motivos de desvínculo, use "Desativar Técnico").
+
+    Mesmo aviso de pendência que desativar/desvincular: trocar de supervisor
+    também encerra o vínculo atual, então tem o mesmo risco de a avaliação
+    pendente com o supervisor de origem sumir sem ninguém ser avisado."""
     if not supervisor_logado(request):
         return RedirectResponse("/login", status_code=303)
     if request.session.get("tipo") != "coordenador":
@@ -773,6 +818,21 @@ def mudar_supervisor_tecnico(
     vinculo_atual = repositorio_vinculo_tecnico.obter_vinculo(vinculo_id)
     if vinculo_atual is None:
         raise HTTPException(status_code=404, detail="Vínculo não encontrado.")
+
+    if not confirmar_apesar_de_pendencias:
+        pendentes = repositorio.meses_pendentes_do_tecnico(vinculo_atual["supervisor"], tecnico)
+        if pendentes:
+            meses_str = ",".join(m.strftime("%Y-%m-%d") for m in pendentes)
+            return RedirectResponse(
+                f"/tecnicos/{quote(tecnico)}?aviso_pendencia_acao=mudar_supervisor"
+                f"&aviso_pendencia_vinculo_id={vinculo_id}"
+                f"&aviso_pendencia_tecnico={quote(tecnico)}"
+                f"&aviso_pendencia_novo_supervisor={quote(novo_supervisor)}"
+                f"&aviso_pendencia_data_inicio={data_inicio.isoformat()}"
+                f"&aviso_pendencia_data_fim_prevista={quote(data_fim_prevista or '')}"
+                f"&aviso_pendencia_meses={meses_str}",
+                status_code=303,
+            )
 
     repositorio_vinculo_tecnico.desvincular_vinculo(
         vinculo_id=vinculo_id,
@@ -800,12 +860,20 @@ def desativar_tecnico_na_pagina(
     tecnico: str,
     id_tecnico: int = Form(...),
     motivo_desativacao: str = Form(...),
+    confirmar_apesar_de_pendencias: bool = Form(False),
 ):
     """
     Desativa o técnico (tabela mestra 'tecnicos') direto da página de
     detalhe dele, com motivo obrigatório. Se ele tiver um vínculo ativo,
     esse vínculo também é encerrado automaticamente — um técnico
     desativado não fica com vínculo aberto.
+
+    Antes de desativar de vez, avisa o coordenador se sobrar mês(es) de
+    avaliação pendente pra esse técnico com o supervisor atual — sem esse
+    aviso, a pendência simplesmente desaparece da lista de ninguém (o
+    técnico deixa de aparecer como ativo, então ninguém é mais cobrado por
+    aquele mês). Se confirmar_apesar_de_pendencias vier marcado, desativa
+    mesmo com pendência (decisão do coordenador).
     """
     if not supervisor_logado(request):
         return RedirectResponse("/login", status_code=303)
@@ -816,9 +884,24 @@ def desativar_tecnico_na_pagina(
     if tecnico_real is not None:
         tecnico = tecnico_real
 
+    vinculo_ativo = repositorio_vinculo_tecnico.obter_vinculo_ativo_do_tecnico(tecnico)
+
+    if vinculo_ativo is not None and not confirmar_apesar_de_pendencias:
+        pendentes = repositorio.meses_pendentes_do_tecnico(
+            vinculo_ativo["supervisor"], tecnico, vinculo_ativo["data_inicio"]
+        )
+        if pendentes:
+            meses_str = ",".join(m.strftime("%Y-%m-%d") for m in pendentes)
+            return RedirectResponse(
+                f"/tecnicos/{quote(tecnico)}?aviso_pendencia_acao=desativar"
+                f"&aviso_pendencia_id_tecnico={id_tecnico}"
+                f"&aviso_pendencia_motivo={quote(motivo_desativacao)}"
+                f"&aviso_pendencia_meses={meses_str}",
+                status_code=303,
+            )
+
     repositorio.definir_ativo_tecnico(id_tecnico, False, motivo_desativacao)
 
-    vinculo_ativo = repositorio_vinculo_tecnico.obter_vinculo_ativo_do_tecnico(tecnico)
     if vinculo_ativo is not None:
         repositorio_vinculo_tecnico.desvincular_vinculo(
             vinculo_id=vinculo_ativo["id"],
@@ -837,6 +920,7 @@ def desvincular_vinculo_tecnico(
     motivo_desvinculacao: str = Form(...),
     data_desvinculacao: date = Form(...),
     redirecionar_para: str | None = Form(default=None),
+    confirmar_apesar_de_pendencias: bool = Form(False),
 ):
     supervisor = supervisor_logado(request)
     if not supervisor:
@@ -846,6 +930,27 @@ def desvincular_vinculo_tecnico(
     # credenciamento, supervisor não decide isso mais sozinho.
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
+
+    if not confirmar_apesar_de_pendencias:
+        vinculo_atual = repositorio_vinculo_tecnico.obter_vinculo_ativo_do_tecnico(tecnico)
+        if vinculo_atual is not None and vinculo_atual["id"] == vinculo_id:
+            pendentes = repositorio.meses_pendentes_do_tecnico(
+                vinculo_atual["supervisor"], tecnico, vinculo_atual["data_inicio"]
+            )
+            if pendentes:
+                meses_str = ",".join(m.strftime("%Y-%m-%d") for m in pendentes)
+                destino_aviso = redirecionar_para or f"/tecnicos/{tecnico}"
+                sep = "&" if "?" in destino_aviso else "?"
+                return RedirectResponse(
+                    f"{destino_aviso}{sep}aviso_pendencia_acao=desvincular"
+                    f"&aviso_pendencia_vinculo_id={vinculo_id}"
+                    f"&aviso_pendencia_tecnico={quote(tecnico)}"
+                    f"&aviso_pendencia_motivo={quote(motivo_desvinculacao)}"
+                    f"&aviso_pendencia_data={data_desvinculacao.isoformat()}"
+                    f"&aviso_pendencia_meses={meses_str}"
+                    f"&aviso_pendencia_redirecionar={quote(destino_aviso)}",
+                    status_code=303,
+                )
 
     repositorio_vinculo_tecnico.desvincular_vinculo(
         vinculo_id=vinculo_id, data_desvinculacao=data_desvinculacao, motivo=motivo_desvinculacao
@@ -929,6 +1034,50 @@ def baixar_relatorio_completo_tecnicos(request: Request, supervisor: str | None 
     return _resposta_xlsx(wb, nome_arquivo)
 
 
+def _reativar_tecnico_e_restaurar_vinculo(id_tecnico: int, criado_por: str):
+    """
+    Reativa o técnico (tabela mestra) E recria o vínculo com o MESMO
+    supervisor/projeto/atividade/empresa/cpf do último vínculo dele (o que
+    foi encerrado quando ele foi desativado), começando hoje.
+
+    Sem isso, "Reativar" só mudava a flag ativo no cadastro mestre, sem
+    efeito nenhum visível: o técnico continuava sem vínculo ativo (não
+    voltava pra "Equipe" de ninguém) e continuava aparecendo no "Histórico"
+    de desativados (que é baseado no vínculo antigo, não na flag ativo) —
+    dando a impressão de que reativar não fazia nada.
+
+    Se o técnico já tiver um vínculo ativo (não deveria, mas por garantia),
+    não mexe em nada além da flag.
+    """
+    repositorio.definir_ativo_tecnico(id_tecnico, True)
+
+    tecnico_cadastro = repositorio.obter_tecnico(id_tecnico)
+    if tecnico_cadastro is None:
+        return
+    nome_tecnico = tecnico_cadastro["nome"]
+
+    vinculo_ativo = repositorio_vinculo_tecnico.obter_vinculo_ativo_do_tecnico(nome_tecnico)
+    if vinculo_ativo is not None:
+        return  # já tem vínculo ativo, nada a restaurar
+
+    historico = repositorio_vinculo_tecnico.historico_tecnico(nome_tecnico)
+    if not historico:
+        return  # nunca teve vínculo — reativa só a flag, coordenador vincula manualmente
+
+    ultimo_vinculo = historico[0]  # historico_tecnico já vem ordenado por data_inicio DESC
+    repositorio_vinculo_tecnico.criar_vinculo(
+        tecnico=nome_tecnico,
+        supervisor=ultimo_vinculo["supervisor"],
+        data_inicio=date.today(),
+        criado_por=criado_por,
+        cpf=ultimo_vinculo.get("cpf"),
+        projeto=ultimo_vinculo.get("projeto"),
+        atividade=ultimo_vinculo.get("atividade"),
+        empresa=ultimo_vinculo.get("empresa"),
+        cnpj_empresa=ultimo_vinculo.get("cnpj_empresa"),
+    )
+
+
 @app.post("/coordenador/tecnicos-desativados/{id_tecnico}/reativar")
 def reativar_tecnico_coordenador(request: Request, id_tecnico: int):
     if not supervisor_logado(request):
@@ -936,8 +1085,36 @@ def reativar_tecnico_coordenador(request: Request, id_tecnico: int):
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
-    repositorio.definir_ativo_tecnico(id_tecnico, True)
+    _reativar_tecnico_e_restaurar_vinculo(id_tecnico, request.session.get("login", "coordenador"))
     return RedirectResponse("/coordenador/tecnicos-desativados", status_code=303)
+
+
+@app.get("/coordenador/vinculos-tecnicos.xlsx")
+def baixar_vinculos_tecnicos_xlsx(request: Request):
+    """Mesma lista da tela de Vínculos de técnicos (só quem está vinculado
+    hoje), em Excel pra baixar."""
+    if not supervisor_logado(request):
+        return RedirectResponse("/login", status_code=303)
+    if request.session.get("tipo") != "coordenador":
+        raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
+
+    cabecalho = [
+        "Técnico", "Supervisor", "Contato", "Data início de visita",
+        "Última visita", "Atividade", "Projeto", "Município",
+    ]
+    wb, ws = _nova_planilha(cabecalho)
+    ws.title = "Vínculos de técnicos"
+    for v in repositorio_vinculo_tecnico.listar_todos_vinculos_ativos():
+        primeira_visita = v.get("primeira_visita")
+        ultima_visita = v.get("ultima_visita")
+        ws.append([
+            v["tecnico"], v["supervisor"], v.get("contato") or "",
+            primeira_visita.strftime("%d/%m/%Y") if primeira_visita else "",
+            ultima_visita.strftime("%d/%m/%Y") if ultima_visita else "",
+            v.get("atividade") or "", v.get("projeto") or "", v.get("municipio") or "",
+        ])
+    _ajustar_largura_colunas(ws, cabecalho)
+    return _resposta_xlsx(wb, "vinculos_tecnicos.xlsx")
 
 
 @app.get("/coordenador/vinculos-tecnicos")
@@ -1115,6 +1292,24 @@ def tela_cadastros(request: Request):
         s["id"]: vinculos_agrupados.get(s["nome"], [])
         for s in supervisores
     }
+    # Nomes (normalizados) de quem tem vínculo ativo HOJE, em qualquer
+    # supervisor — usado só pra decidir se mostra o botão de
+    # Reativar/Reverter no histórico: se o técnico já está ativo de novo
+    # (foi reativado ou revertido), não faz sentido mostrar o botão de novo
+    # ao lado do registro antigo — fica só como registro histórico, sem ação.
+    nomes_com_vinculo_ativo_hoje = {
+        repositorio.normalizar(v["tecnico"])
+        for vinculos in vinculos_por_supervisor.values()
+        for v in vinculos
+        if v["data_desvinculacao"] is None
+    }
+
+    def _com_flag_ativo(vinculos):
+        return [
+            {**v, "tem_vinculo_ativo_hoje": repositorio.normalizar(v["tecnico"]) in nomes_com_vinculo_ativo_hoje}
+            for v in vinculos
+        ]
+
     # Consultas únicas pra todos os supervisores de uma vez (antes eram
     # uma consulta por supervisor cada — com muitos supervisores e a
     # latência até o banco remoto, isso somava bastante tempo).
@@ -1145,19 +1340,19 @@ def tela_cadastros(request: Request):
                 for sid, vinculos in vinculos_por_supervisor.items()
             },
             "historico_desativados_por_supervisor": {
-                sid: [
+                sid: _com_flag_ativo([
                     v for v in vinculos
                     if v["data_desvinculacao"] is not None
                     and (v["motivo_desvinculacao"] or "").startswith("Técnico desativado")
-                ]
+                ])
                 for sid, vinculos in vinculos_por_supervisor.items()
             },
             "historico_descredenciados_por_supervisor": {
-                sid: [
+                sid: _com_flag_ativo([
                     v for v in vinculos
                     if v["data_desvinculacao"] is not None
                     and not (v["motivo_desvinculacao"] or "").startswith("Técnico desativado")
-                ]
+                ])
                 for sid, vinculos in vinculos_por_supervisor.items()
             },
             "supervisores_ativos_nomes": [s["nome"] for s in supervisores if s["ativo"]],
@@ -1230,20 +1425,23 @@ def alterar_ativo_tecnico(request: Request, id_tecnico: int, ativo: bool = Form(
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
-    repositorio.definir_ativo_tecnico(id_tecnico, ativo, motivo_desativacao)
+    if ativo:
+        _reativar_tecnico_e_restaurar_vinculo(id_tecnico, request.session.get("login", "coordenador"))
+        return RedirectResponse("/coordenador/cadastros", status_code=303)
+
+    repositorio.definir_ativo_tecnico(id_tecnico, False, motivo_desativacao)
 
     # Um técnico desativado não fica com vínculo aberto — encerra
     # automaticamente e ele passa a aparecer no Histórico, não mais na Equipe.
-    if not ativo:
-        tecnico_cadastro = repositorio.obter_tecnico(id_tecnico)
-        if tecnico_cadastro is not None:
-            vinculo_ativo = repositorio_vinculo_tecnico.obter_vinculo_ativo_do_tecnico(tecnico_cadastro["nome"])
-            if vinculo_ativo is not None:
-                repositorio_vinculo_tecnico.desvincular_vinculo(
-                    vinculo_id=vinculo_ativo["id"],
-                    data_desvinculacao=date.today(),
-                    motivo=f"Técnico desativado: {motivo_desativacao}" if motivo_desativacao else "Técnico desativado",
-                )
+    tecnico_cadastro = repositorio.obter_tecnico(id_tecnico)
+    if tecnico_cadastro is not None:
+        vinculo_ativo = repositorio_vinculo_tecnico.obter_vinculo_ativo_do_tecnico(tecnico_cadastro["nome"])
+        if vinculo_ativo is not None:
+            repositorio_vinculo_tecnico.desvincular_vinculo(
+                vinculo_id=vinculo_ativo["id"],
+                data_desvinculacao=date.today(),
+                motivo=f"Técnico desativado: {motivo_desativacao}" if motivo_desativacao else "Técnico desativado",
+            )
 
     return RedirectResponse("/coordenador/cadastros", status_code=303)
 

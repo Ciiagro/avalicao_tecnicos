@@ -182,18 +182,81 @@ def mes_anterior(ref: date) -> date:
     return date(ano, mes, 1)
 
 
+# Mês em que o sistema de avaliação começou a valer — nenhum mês anterior
+# a esse deve aparecer como avaliável nem como "pendente". Antes disso não
+# existia avaliação nenhuma rodando, então mês passado não é uma pendência
+# esquecida, é só "fora do período do sistema".
+MES_INICIO_AVALIACOES = date(2026, 7, 1)
+
+
 def meses_disponiveis_para_avaliacao(qtd: int = 6) -> list[date]:
     """
     Lista os últimos `qtd` meses que podem ser escolhidos na hora de avaliar
     (o mês corrente nunca entra, pois só se avalia mês já fechado).
     Ordem: mais recente primeiro (o primeiro é o padrão/sugerido).
+
+    Nunca retorna mês anterior a MES_INICIO_AVALIACOES.
     """
     meses = []
     m = mes_referencia_atual()
     for _ in range(qtd):
+        if m < MES_INICIO_AVALIACOES:
+            break
         meses.append(m)
         m = mes_anterior(m)
     return meses
+
+
+def meses_pendentes_do_tecnico(supervisor: str, tecnico: str, data_inicio_vinculo: date | None = None) -> list[date]:
+    """
+    Lista os meses (já fechados) em que este técnico ficaria com avaliação
+    pendente ATÉ AGORA, pra esse supervisor — usado como aviso na hora de
+    desativar/desvincular alguém, pra não perder pendência "por baixo do
+    tapete" só porque o técnico saiu da equipe antes de ser avaliado.
+
+    IMPORTANTE: não filtra por data_inicio_vinculo (o parâmetro é mantido
+    só por compatibilidade de assinatura, não é mais usado). A tela de
+    avaliação (tecnicos_do_supervisor_no_mes) considera um técnico ativo
+    elegível pra QUALQUER um dos últimos 6 meses, independente de quando o
+    vínculo com este supervisor começou — então a checagem de pendência
+    precisa seguir a mesma regra, senão sobra pendência real que não é
+    avisada (foi o que aconteceu: técnico vinculado há pouco tempo, mas
+    que devia ser avaliado em julho, não foi avisado porque a data de
+    início filtrava julho fora da conta).
+
+    "Pendente" = mês dentro da janela normal de avaliação (últimos 6 meses
+    fechados, mesmo critério de meses_disponiveis_para_avaliacao) que NÃO
+    tem avaliação lançada (ja_avaliado) e NÃO foi marcado como "não
+    avaliar" (nao_avaliar_tecnico_mes).
+    """
+    meses_candidatos = meses_disponiveis_para_avaliacao(qtd=6)
+
+    pendentes = []
+    engine = get_engine()
+    with engine.connect() as conn:
+        for mes_ref in meses_candidatos:
+            ja_tem_avaliacao = conn.execute(
+                text("""
+                    SELECT 1 FROM avaliacoes_tecnicos
+                    WHERE supervisor = :supervisor AND tecnico = :tecnico AND mes_referencia = :mes_ref
+                    LIMIT 1;
+                """),
+                {"supervisor": supervisor, "tecnico": tecnico, "mes_ref": mes_ref},
+            ).fetchone()
+            if ja_tem_avaliacao:
+                continue
+            marcado_nao_avaliar = conn.execute(
+                text("""
+                    SELECT 1 FROM nao_avaliar_tecnico_mes
+                    WHERE supervisor = :supervisor AND tecnico = :tecnico AND mes_referencia = :mes_ref
+                    LIMIT 1;
+                """),
+                {"supervisor": supervisor, "tecnico": tecnico, "mes_ref": mes_ref},
+            ).fetchone()
+            if marcado_nao_avaliar:
+                continue
+            pendentes.append(mes_ref)
+    return sorted(pendentes)
 
 
 # ══════════════════════════════════════════════════════════

@@ -400,6 +400,9 @@ def listar_todos_vinculos_ativos():
     (que varre a tabela toda) uma vez PARA CADA vínculo, e trava a tela
     com o volume real de dados. A dedupe acontece antes, na subconsulta
     em si, então o JOIN final continua um LEFT JOIN comum e rápido.
+
+    Inclui contato e município (cadastro mestre 'tecnicos') — usado tanto
+    pra tela quanto pra exportação em Excel, pra não duplicar a consulta.
     """
     engine = get_engine()
     query = f"""
@@ -409,10 +412,17 @@ def listar_todos_vinculos_ativos():
             COALESCE(vis.atividade, v.atividade, cad.atividade) AS atividade,
             v.empresa, v.cnpj_empresa, v.supervisor,
             v.data_inicio, v.data_fim_prevista,
-            vis.primeira_visita, vis.ultima_visita
+            vis.primeira_visita, vis.ultima_visita,
+            tm.contato, tm.municipio
         FROM vinculo_tecnico v
         LEFT JOIN ({QUERY_TODOS_TECNICOS_COM_VISITAS_DEDUP}) vis ON lower(trim(regexp_replace(vis.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
         LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES_DEDUP}) cad ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        LEFT JOIN (
+            SELECT DISTINCT ON (lower(trim(regexp_replace(nome, '\\s+', ' ', 'g'))))
+                nome, contato, municipio
+            FROM tecnicos
+            ORDER BY lower(trim(regexp_replace(nome, '\\s+', ' ', 'g'))), id_tecnico_responsavel DESC
+        ) tm ON lower(trim(regexp_replace(tm.nome, '\\s+', ' ', 'g'))) = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
         WHERE v.data_desvinculacao IS NULL
         ORDER BY v.supervisor, v.tecnico;
     """

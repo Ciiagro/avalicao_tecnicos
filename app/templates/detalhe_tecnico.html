@@ -38,6 +38,46 @@
             · última visita: {{ visita.ultima_visita.strftime("%d/%m/%Y") if visita.ultima_visita else "—" }}
         </p>
 
+        {% if aviso_pendencia %}
+        <div style="background:#fdecea; border:1px solid #e2a49c; border-radius:10px; padding:16px 18px; margin-bottom:18px;">
+            <p style="margin:0 0 10px 0; color:#7a2e24; font-weight:600;">
+                ⚠️ Esse técnico tem {{ aviso_pendencia.meses_formatados|length }}
+                mês(es) de avaliação pendente com o supervisor atual: {{ aviso_pendencia.meses_formatados|join(", ") }}.
+                {% if aviso_pendencia.acao == "desativar" %}Desativar mesmo assim?{% elif aviso_pendencia.acao == "mudar_supervisor" %}Trocar de supervisor mesmo assim?{% else %}Desvincular mesmo assim?{% endif %}
+                Essas pendências vão parar de ser cobradas de qualquer supervisor.
+            </p>
+            {% if aviso_pendencia.acao == "desativar" %}
+            <form method="post" action="/tecnicos/{{ tecnico }}/desativar" style="display:inline;">
+                <input type="hidden" name="id_tecnico" value="{{ aviso_pendencia.id_tecnico }}">
+                <input type="hidden" name="motivo_desativacao" value="{{ aviso_pendencia.motivo }}">
+                <input type="hidden" name="confirmar_apesar_de_pendencias" value="true">
+                <button type="submit" class="botao" style="background:#b3261e;">Sim, desativar mesmo assim</button>
+            </form>
+            {% elif aviso_pendencia.acao == "mudar_supervisor" %}
+            <form method="post" action="/tecnicos/mudar-supervisor" style="display:inline;">
+                <input type="hidden" name="vinculo_id" value="{{ aviso_pendencia.vinculo_id }}">
+                <input type="hidden" name="tecnico" value="{{ aviso_pendencia.tecnico_form }}">
+                <input type="hidden" name="novo_supervisor" value="{{ aviso_pendencia.novo_supervisor }}">
+                <input type="hidden" name="data_inicio" value="{{ aviso_pendencia.data_inicio }}">
+                <input type="hidden" name="data_fim_prevista" value="{{ aviso_pendencia.data_fim_prevista or '' }}">
+                <input type="hidden" name="confirmar_apesar_de_pendencias" value="true">
+                <button type="submit" class="botao" style="background:#b3261e;">Sim, trocar de supervisor mesmo assim</button>
+            </form>
+            {% else %}
+            <form method="post" action="/tecnicos/desvincular" style="display:inline;">
+                <input type="hidden" name="vinculo_id" value="{{ aviso_pendencia.vinculo_id }}">
+                <input type="hidden" name="tecnico" value="{{ aviso_pendencia.tecnico_form }}">
+                <input type="hidden" name="motivo_desvinculacao" value="{{ aviso_pendencia.motivo }}">
+                <input type="hidden" name="data_desvinculacao" value="{{ aviso_pendencia.data_desvinculacao }}">
+                <input type="hidden" name="redirecionar_para" value="{{ aviso_pendencia.redirecionar_para or '' }}">
+                <input type="hidden" name="confirmar_apesar_de_pendencias" value="true">
+                <button type="submit" class="botao" style="background:#b3261e;">Sim, desvincular mesmo assim</button>
+            </form>
+            {% endif %}
+            <a href="/tecnicos/{{ tecnico }}" style="margin-left:10px; color:#7a2e24;">Cancelar</a>
+        </div>
+        {% endif %}
+
         <h2>Dados cadastrais</h2>
         {% if not eh_coordenador %}
         <p class="subtitulo">Dados cadastrais visíveis apenas para a coordenação.</p>

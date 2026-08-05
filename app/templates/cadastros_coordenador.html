@@ -174,7 +174,9 @@
                                                 {{ data_historico.strftime("%d/%m/%Y") if data_historico else "—" }}
                                             </td>
                                             <td style="text-align:right; width:1%; white-space:nowrap;">
-                                                {% if v.id_tecnico %}
+                                                {% if v.tem_vinculo_ativo_hoje %}
+                                                <span class="status avaliado" style="font-size:0.7rem;">Já ativo novamente</span>
+                                                {% elif v.id_tecnico %}
                                                 <form method="post" action="/coordenador/cadastros/tecnico/{{ v.id_tecnico }}/ativo" onclick="event.stopPropagation()" style="margin:0;"
                                                       onsubmit="return confirm('Reativar {{ v.tecnico | replace("'", "\\'") }}? Ele volta a ficar ativo com {{ s.nome | replace("'", "\\'") }}.');">
                                                     <input type="hidden" name="ativo" value="true">
@@ -205,11 +207,15 @@
                                                 {{ v.data_desvinculacao.strftime("%d/%m/%Y") if v.data_desvinculacao else "—" }}
                                             </td>
                                             <td style="text-align:right; width:1%; white-space:nowrap;">
+                                                {% if v.tem_vinculo_ativo_hoje %}
+                                                <span class="status avaliado" style="font-size:0.7rem;">Já ativo novamente</span>
+                                                {% else %}
                                                 <form method="post" action="/coordenador/cadastros/tecnico/reverter" onclick="event.stopPropagation()" style="margin:0;"
                                                       onsubmit="return confirm('Reverter o descredenciamento de {{ v.tecnico | replace("'", "\\'") }}? Ele volta a ficar ativo com {{ s.nome | replace("'", "\\'") }}.');">
                                                     <input type="hidden" name="vinculo_id" value="{{ v.vinculo_id }}">
                                                     <button type="submit" class="botao" style="margin:0; padding:4px 10px; font-size:0.72rem;">Reverter</button>
                                                 </form>
+                                                {% endif %}
                                             </td>
                                         </tr>
                                         {% endfor %}

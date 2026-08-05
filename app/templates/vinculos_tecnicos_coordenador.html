@@ -21,7 +21,10 @@
             <a href="/coordenador/ranking">Ranking</a>
         </nav>
 
-        <p class="subtitulo">Auditoria — todos os vínculos ativos, de todos os supervisores.</p>
+        <p class="subtitulo">
+            Auditoria — todos os vínculos ativos, de todos os supervisores.
+            · <a href="/coordenador/vinculos-tecnicos.xlsx">📥 Baixar planilha (Excel)</a>
+        </p>
 
         <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:16px;">
             <div>
@@ -47,28 +50,31 @@
                         <th style="width:26px;"></th>
                         <th>Técnico</th>
                         <th>Supervisor</th>
-                        <th>Projeto</th>
-                        <th>Atividade</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for v in vinculos %}
                     <tr data-supervisor="{{ v.supervisor }}" data-tecnico="{{ v.tecnico | lower }}" class="linha-principal" onclick="toggleDetalhe(this)">
                         <td class="col-seta">▸</td>
-                        <td class="col-tecnico"><a href="/tecnicos/{{ v.tecnico | urlencode }}" onclick="event.stopPropagation()">{{ v.tecnico }}</a></td>
+                        <td class="col-tecnico">
+                            <a href="/tecnicos/{{ v.tecnico | urlencode }}" onclick="event.stopPropagation()">{{ v.tecnico }}</a>
+                            <br>
+                            <small style="color:var(--texto-600); font-weight:400;">{{ v.projeto or "—" }} · {{ v.atividade or "—" }}</small>
+                        </td>
                         <td>{{ v.supervisor }}</td>
-                        <td>{{ v.projeto or "—" }}</td>
-                        <td>{{ v.atividade or "—" }}</td>
                     </tr>
                     <tr data-supervisor="{{ v.supervisor }}" data-tecnico="{{ v.tecnico | lower }}" class="linha-detalhe" style="display:none;">
                         <td></td>
-                        <td colspan="4">
+                        <td colspan="2">
                             <div class="grade-detalhe">
                                 <div><span>CPF</span>{{ v.cpf or "—" }}</div>
+                                <div><span>Contato</span>{{ v.contato or "—" }}</div>
+                                <div><span>Município</span>{{ v.municipio or "—" }}</div>
                                 <div><span>Empresa</span>{{ v.empresa or "—" }}</div>
                                 <div><span>CNPJ</span>{{ v.cnpj_empresa or "—" }}</div>
                                 <div><span>Início</span>{{ v.data_inicio.strftime("%d/%m/%Y") }}</div>
                                 <div><span>Fim previsto</span>{{ v.data_fim_prevista.strftime("%d/%m/%Y") if v.data_fim_prevista else "—" }}</div>
+                                <div><span>Primeira visita</span>{{ v.primeira_visita.strftime("%d/%m/%Y") if v.primeira_visita else "—" }}</div>
                                 <div><span>Última visita</span>{{ v.ultima_visita.strftime("%d/%m/%Y") if v.ultima_visita else "—" }}</div>
                             </div>
                         </td>
