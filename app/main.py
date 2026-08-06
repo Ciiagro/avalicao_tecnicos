@@ -1002,27 +1002,40 @@ def tela_relatorio_completo_tecnicos(request: Request, supervisor: str | None = 
 
 
 @app.get("/coordenador/tecnicos/relatorio.xlsx")
-def baixar_relatorio_completo_tecnicos(request: Request, supervisor: str | None = Query(default=None)):
-    """Mesmo relatório de cima, em Excel pra baixar."""
+def baixar_relatorio_completo_tecnicos(
+    request: Request,
+    supervisor: str | None = Query(default=None),
+    somente_vinculados: bool = Query(default=False),
+):
+    """Mesmo relatório de cima, em Excel pra baixar. somente_vinculados
+    respeita a caixa "Só vinculados" marcada na tela na hora de baixar."""
     if not supervisor_logado(request):
         return RedirectResponse("/login", status_code=303)
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
     cabecalho = [
-        "Nome", "Situação", "Projeto", "Atividade", "Motivo (desativação)", "Avaliação do Técnico",
+        "Nome", "Situação", "Projeto", "Atividade", "Região FAEC", "Sindicato",
+        "Motivo (desativação)", "Avaliação do Técnico",
+        "Início no projeto", "Última visita", "Tempo de projeto (meses)",
         "RG", "CPF", "Contato", "E-mail",
         "Endereço", "Município", "Empresa", "CNPJ da empresa",
         "Capacitação metodológica (mês/ano)", "Modalidade da capacitação",
     ]
     wb, ws = _nova_planilha(cabecalho)
     ws.title = "Técnicos"
-    for t in repositorio.listar_relatorio_completo_tecnicos(supervisor):
+    for t in repositorio.listar_relatorio_completo_tecnicos(supervisor, somente_vinculados=somente_vinculados):
         capacitacao = t.get("mes_ano_capacitacao_metodologica")
+        inicio_projeto = t.get("primeira_visita_projeto")
+        ultima_visita = t.get("ultima_visita")
         ws.append([
             t["nome"], t["situacao"], t.get("projeto_atual") or "", t.get("atividade_atual") or "",
+            t.get("regiao_faec") or "", t.get("sindicato") or "",
             t.get("motivo_desativacao_curto") or "",
             t.get("avaliacao_desativacao") or "",
+            inicio_projeto.strftime("%d/%m/%Y") if inicio_projeto else "",
+            ultima_visita.strftime("%d/%m/%Y") if ultima_visita else "",
+            t.get("tempo_de_projeto_meses") if t.get("tempo_de_projeto_meses") is not None else "",
             t.get("rg") or "", t.get("cpf") or "",
             t.get("contato") or "", t.get("email") or "", t.get("endereco") or "",
             t.get("municipio") or "", t.get("empresa") or "", t.get("cnpj_empresa") or "",

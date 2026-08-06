@@ -1735,7 +1735,66 @@ def excluir_supervisor(supervisor_id: int, nome_supervisor: str):
 # ══════════════════════════════════════════════════════════
 # TÉCNICOS (cadastro mestre — identidade + dados complementares)
 # ══════════════════════════════════════════════════════════
-def listar_relatorio_completo_tecnicos(supervisor: str | None = None):
+def obter_tempo_de_projeto_por_tecnico() -> dict:
+    """
+    Pra cada técnico: primeira visita NO PROJETO ATUAL dele (não a primeira
+    visita da carreira toda — mesmo critério da view vw_tecnicos_tempo_projeto
+    criada no banco), última visita, tempo de projeto em meses inteiros,
+    região FAEC e sindicato (da visita mais recente).
+
+    Retorna dict {nome_normalizado: {...}} — usado por
+    listar_relatorio_completo_tecnicos pra enriquecer o relatório sem
+    duplicar a consulta pesada de visitas.
+    """
+    engine = get_engine()
+    query = """
+        WITH visitas_por_projeto AS (
+            SELECT
+                tecnico_responsavel,
+                projeto,
+                "Regiao_faec",
+                "Sindicato",
+                dt_visita_original::date AS dt_visita,
+                MIN(dt_visita_original::date) OVER (PARTITION BY tecnico_responsavel, projeto) AS primeira_visita_no_projeto,
+                MAX(dt_visita_original::date) OVER (PARTITION BY tecnico_responsavel, projeto) AS ultima_visita_no_projeto
+            FROM public.acompanhamento_mensal_visitas
+            WHERE vinculo_dt_fim IS NULL AND tecnico_responsavel IS NOT NULL
+        ),
+        por_tecnico AS (
+            SELECT DISTINCT ON (tecnico_responsavel)
+                tecnico_responsavel,
+                "Regiao_faec",
+                "Sindicato",
+                primeira_visita_no_projeto,
+                ultima_visita_no_projeto
+            FROM visitas_por_projeto
+            ORDER BY tecnico_responsavel, dt_visita DESC
+        )
+        SELECT
+            tecnico_responsavel,
+            "Regiao_faec",
+            "Sindicato",
+            primeira_visita_no_projeto,
+            ultima_visita_no_projeto,
+            (EXTRACT(YEAR FROM AGE(CURRENT_DATE, primeira_visita_no_projeto)) * 12
+                + EXTRACT(MONTH FROM AGE(CURRENT_DATE, primeira_visita_no_projeto)))::int AS tempo_de_projeto_meses
+        FROM por_tecnico;
+    """
+    with engine.connect() as conn:
+        linhas = conn.execute(text(query)).mappings().all()
+    return {
+        normalizar(l["tecnico_responsavel"]): {
+            "regiao_faec": l["Regiao_faec"],
+            "sindicato": l["Sindicato"],
+            "primeira_visita_projeto": l["primeira_visita_no_projeto"],
+            "ultima_visita": l["ultima_visita_no_projeto"],
+            "tempo_de_projeto_meses": l["tempo_de_projeto_meses"],
+        }
+        for l in linhas
+    }
+
+
+def listar_relatorio_completo_tecnicos(supervisor: str | None = None, somente_vinculados: bool = False):
     """
     Relatório geral: TODO técnico cadastrado (ativo ou não), com os dados
     cadastrais completos e a situação atual resumida em uma única string,
@@ -1786,6 +1845,7 @@ def listar_relatorio_completo_tecnicos(supervisor: str | None = None):
         ).mappings().all()
 
     marcador = " — Avaliação do Técnico: "
+    tempo_projeto_por_tecnico = obter_tempo_de_projeto_por_tecnico()
     resultado = []
     for l in linhas:
         d = dict(l)
@@ -1806,7 +1866,16 @@ def listar_relatorio_completo_tecnicos(supervisor: str | None = None):
         d["motivo_desativacao_curto"] = motivo_curto or None
         d["avaliacao_desativacao"] = avaliacao or None
 
+        tempo_projeto = tempo_projeto_por_tecnico.get(normalizar(d["nome"]))
+        d["primeira_visita_projeto"] = tempo_projeto["primeira_visita_projeto"] if tempo_projeto else None
+        d["ultima_visita"] = tempo_projeto["ultima_visita"] if tempo_projeto else None
+        d["tempo_de_projeto_meses"] = tempo_projeto["tempo_de_projeto_meses"] if tempo_projeto else None
+        d["regiao_faec"] = tempo_projeto["regiao_faec"] if tempo_projeto else None
+        d["sindicato"] = tempo_projeto["sindicato"] if tempo_projeto else None
+
         if supervisor and d["supervisor_atual"] != supervisor:
+            continue
+        if somente_vinculados and not d["supervisor_atual"]:
             continue
         resultado.append(d)
     return resultado

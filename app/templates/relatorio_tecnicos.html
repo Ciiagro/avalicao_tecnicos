@@ -8,15 +8,21 @@
         .status.desativado-forte { background: var(--terracota-600); color: #fff; }
         .status.neutro { background: var(--areia-100); color: var(--texto-600); }
 
-        table.relatorio { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 16px; }
+        .tabela-relatorio-wrap { overflow-x: auto; margin-top: 16px; border: 1px solid var(--borda); border-radius: 10px; }
+        table.relatorio { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
         table.relatorio th, table.relatorio td {
-            text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--borda);
-            vertical-align: top;
+            text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--borda);
+            vertical-align: top; white-space: nowrap;
         }
+        table.relatorio td:first-child { white-space: normal; min-width: 220px; }
+        table.relatorio td:nth-child(2) { white-space: normal; min-width: 160px; }
+        table.relatorio th:nth-child(3), table.relatorio td:nth-child(3) { width: 1%; text-align: center; }
         table.relatorio th {
             background: var(--verde-700); color: #fff; font-weight: 600;
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.02em;
             position: sticky; top: 0;
         }
+        table.relatorio .status { white-space: normal; display: inline-block; border-radius: 8px; line-height: 1.35; }
         table.relatorio tr:nth-child(even) { background: var(--areia-50); }
 
         @media print {
@@ -28,7 +34,7 @@
     </style>
 </head>
 <body>
-    <div class="container" style="max-width: 1200px;">
+    <div class="container">
         <img src="/static/logo_sistema.png" alt="Logo" class="logo-institucional">
         <div class="top-bar nao-imprime">
             <h1>Relatório de técnicos</h1>
@@ -57,9 +63,22 @@
                 <label for="filtro-relatorio" style="display:block; font-size:0.8rem; color:var(--texto-600);">Buscar</label>
                 <input type="text" id="filtro-relatorio" placeholder="Buscar técnico…" style="width:100%;">
             </div>
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; color:var(--texto-700); padding-bottom:8px; cursor:pointer;">
+                <input type="checkbox" id="filtro-so-vinculados">
+                Só vinculados
+            </label>
             <span id="contador-relatorio" style="color:var(--texto-600); font-size:0.85rem; padding-bottom:8px;"></span>
-            <button type="button" class="botao" onclick="window.print()">🖨️ Imprimir</button>
-            <a class="botao botao-dourado" href="/coordenador/tecnicos/relatorio.xlsx{{ ('?supervisor=' ~ supervisor_escolhido) if supervisor_escolhido else '' }}">⬇️ Baixar Excel</a>
+        </div>
+
+        <div class="nao-imprime" style="display:flex; gap:10px; margin-bottom:16px;">
+            <button type="button" onclick="window.print()"
+                style="box-sizing:border-box; height:40px; min-width:140px; display:inline-flex; align-items:center; justify-content:center; background:var(--verde-100); border:1px solid var(--verde-500); border-radius:6px; padding:0 16px; margin:0; font-size:0.82rem; font-weight:600; font-family:inherit; cursor:pointer; color:var(--verde-700); box-shadow:none; line-height:1;">
+                🖨️ Imprimir
+            </button>
+            <a id="link-baixar-excel" href="/coordenador/tecnicos/relatorio.xlsx{{ ('?supervisor=' ~ supervisor_escolhido) if supervisor_escolhido else '' }}"
+                style="box-sizing:border-box; height:40px; min-width:140px; display:inline-flex; align-items:center; justify-content:center; background:var(--dourado-100); border:1px solid var(--dourado-500); border-radius:6px; padding:0 16px; margin:0; font-size:0.82rem; font-weight:600; font-family:inherit; cursor:pointer; color:var(--dourado-600); text-decoration:none; box-shadow:none; line-height:1;">
+                ⬇️ Baixar Excel
+            </a>
         </div>
 
         <h2 style="margin-bottom:4px;">
@@ -71,11 +90,13 @@
         {% if not tecnicos %}
         <p class="subtitulo">Nenhum técnico encontrado.</p>
         {% else %}
+        <div class="tabela-relatorio-wrap">
         <table class="relatorio" id="tabela-relatorio">
             <thead>
                 <tr>
                     <th>Nome</th>
                     <th>Situação</th>
+                    <th>Meses no projeto</th>
                     <th>Capacitação</th>
                     <th>Modalidade</th>
                     <th>Avaliação</th>
@@ -83,11 +104,17 @@
             </thead>
             <tbody>
                 {% for t in tecnicos %}
-                <tr data-nome="{{ t.nome | lower }}">
+                <tr data-nome="{{ t.nome | lower }}" data-vinculado="{{ '1' if t.supervisor_atual else '0' }}">
                     <td>
                         <strong>{{ t.nome }}</strong>
                         {% if t.projeto_atual or t.atividade_atual %}
                         <br><small style="color:var(--texto-600);">{{ t.projeto_atual or "—" }} · {{ t.atividade_atual or "—" }}</small>
+                        {% endif %}
+                        {% if t.primeira_visita_projeto or t.ultima_visita %}
+                        <br><small style="color:var(--texto-600);">
+                            Início: {{ t.primeira_visita_projeto.strftime("%d/%m/%Y") if t.primeira_visita_projeto else "—" }}
+                            · Última visita: {{ t.ultima_visita.strftime("%d/%m/%Y") if t.ultima_visita else "—" }}
+                        </small>
                         {% endif %}
                     </td>
                     <td>
@@ -107,6 +134,7 @@
                         </small>
                         {% endif %}
                     </td>
+                    <td>{{ t.tempo_de_projeto_meses if t.tempo_de_projeto_meses is not none else "—" }}</td>
                     <td>{{ t.mes_ano_capacitacao_metodologica.strftime("%m/%Y") if t.mes_ano_capacitacao_metodologica else "—" }}</td>
                     <td>{{ t.modalidade_capacitacao_metodologica or "—" }}</td>
                     <td>{{ t.avaliacao_desativacao or "—" }}</td>
@@ -114,29 +142,40 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
         {% endif %}
     </div>
 
     <script>
         const inputFiltro = document.getElementById('filtro-relatorio');
+        const checkboxVinculados = document.getElementById('filtro-so-vinculados');
         const contador = document.getElementById('contador-relatorio');
-        if (inputFiltro) {
-            const linhas = Array.from(document.querySelectorAll('#tabela-relatorio tbody tr'));
+        const linkExcel = document.getElementById('link-baixar-excel');
+        const hrefBaseExcel = linkExcel ? linkExcel.getAttribute('href') : '';
+        const linhas = Array.from(document.querySelectorAll('#tabela-relatorio tbody tr'));
 
-            function aplicarFiltro() {
-                const busca = inputFiltro.value.trim().toLowerCase();
-                let visiveis = 0;
-                linhas.forEach(function (tr) {
-                    const mostra = !busca || tr.dataset.nome.includes(busca);
-                    tr.style.display = mostra ? '' : 'none';
-                    if (mostra) visiveis++;
-                });
-                contador.textContent = busca ? (visiveis + ' de ' + linhas.length + ' técnico(s)') : '';
+        function aplicarFiltro() {
+            const busca = inputFiltro ? inputFiltro.value.trim().toLowerCase() : '';
+            const soVinculados = checkboxVinculados ? checkboxVinculados.checked : false;
+            let visiveis = 0;
+            linhas.forEach(function (tr) {
+                const bateBusca = !busca || tr.dataset.nome.includes(busca);
+                const bateVinculo = !soVinculados || tr.dataset.vinculado === '1';
+                const mostra = bateBusca && bateVinculo;
+                tr.style.display = mostra ? '' : 'none';
+                if (mostra) visiveis++;
+            });
+            contador.textContent = (busca || soVinculados) ? (visiveis + ' de ' + linhas.length + ' técnico(s)') : '';
+
+            if (linkExcel) {
+                const separador = hrefBaseExcel.includes('?') ? '&' : '?';
+                linkExcel.setAttribute('href', soVinculados ? (hrefBaseExcel + separador + 'somente_vinculados=1') : hrefBaseExcel);
             }
-
-            inputFiltro.addEventListener('input', aplicarFiltro);
-            aplicarFiltro();
         }
+
+        if (inputFiltro) inputFiltro.addEventListener('input', aplicarFiltro);
+        if (checkboxVinculados) checkboxVinculados.addEventListener('change', aplicarFiltro);
+        aplicarFiltro();
     </script>
 </body>
 </html>
