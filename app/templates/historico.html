@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Minhas avaliações</title>
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=5">
 </head>
 <body>
     <div class="container">
@@ -41,9 +41,9 @@
                     </span>
                     <span style="display:flex; align-items:center; gap:14px;">
                         {% if eh_coordenador %}
-                        <a href="/comparar/{{ a.tecnico | urlencode }}?sup={{ a.supervisor | urlencode }}" style="font-size:0.82rem; color:#5c6d63; text-decoration:none; font-weight:600;">Comparar meses</a>
+                        <a href="/comparar/{{ a.tecnico | urlencode }}?sup={{ a.supervisor | urlencode }}" style="font-size:0.82rem; color:#656058; text-decoration:none; font-weight:600;">Comparar meses</a>
                         {% else %}
-                        <a href="/comparar/{{ a.tecnico | urlencode }}" style="font-size:0.82rem; color:#5c6d63; text-decoration:none; font-weight:600;">Comparar meses</a>
+                        <a href="/comparar/{{ a.tecnico | urlencode }}" style="font-size:0.82rem; color:#656058; text-decoration:none; font-weight:600;">Comparar meses</a>
                         {% endif %}
                         <span class="status avaliado">Nota {{ a.nota_final }}</span>
                         <a class="botao" style="margin:0; padding:6px 16px;" href="/minhas-avaliacoes/{{ a.id }}">Ver detalhes</a>

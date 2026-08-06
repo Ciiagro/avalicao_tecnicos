@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ tecnico }}</title>
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=5">
 </head>
 <body>
     <div class="container">
@@ -39,8 +39,8 @@
         </p>
 
         {% if aviso_pendencia %}
-        <div style="background:#fdecea; border:1px solid #e2a49c; border-radius:10px; padding:16px 18px; margin-bottom:18px;">
-            <p style="margin:0 0 10px 0; color:#7a2e24; font-weight:600;">
+        <div style="background:var(--terracota-100); border:1px solid var(--terracota-600); border-radius:10px; padding:16px 18px; margin-bottom:18px;">
+            <p style="margin:0 0 10px 0; color:var(--terracota-600); font-weight:600;">
                 ⚠️ Esse técnico tem {{ aviso_pendencia.meses_formatados|length }}
                 mês(es) de avaliação pendente com o supervisor atual: {{ aviso_pendencia.meses_formatados|join(", ") }}.
                 {% if aviso_pendencia.acao == "desativar" %}Desativar mesmo assim?{% elif aviso_pendencia.acao == "mudar_supervisor" %}Trocar de supervisor mesmo assim?{% else %}Desvincular mesmo assim?{% endif %}
@@ -51,7 +51,7 @@
                 <input type="hidden" name="id_tecnico" value="{{ aviso_pendencia.id_tecnico }}">
                 <input type="hidden" name="motivo_desativacao" value="{{ aviso_pendencia.motivo }}">
                 <input type="hidden" name="confirmar_apesar_de_pendencias" value="true">
-                <button type="submit" class="botao" style="background:#b3261e;">Sim, desativar mesmo assim</button>
+                <button type="submit" class="botao botao-perigo">Sim, desativar mesmo assim</button>
             </form>
             {% elif aviso_pendencia.acao == "mudar_supervisor" %}
             <form method="post" action="/tecnicos/mudar-supervisor" style="display:inline;">
@@ -61,7 +61,7 @@
                 <input type="hidden" name="data_inicio" value="{{ aviso_pendencia.data_inicio }}">
                 <input type="hidden" name="data_fim_prevista" value="{{ aviso_pendencia.data_fim_prevista or '' }}">
                 <input type="hidden" name="confirmar_apesar_de_pendencias" value="true">
-                <button type="submit" class="botao" style="background:#b3261e;">Sim, trocar de supervisor mesmo assim</button>
+                <button type="submit" class="botao botao-perigo">Sim, trocar de supervisor mesmo assim</button>
             </form>
             {% else %}
             <form method="post" action="/tecnicos/desvincular" style="display:inline;">
@@ -71,10 +71,10 @@
                 <input type="hidden" name="data_desvinculacao" value="{{ aviso_pendencia.data_desvinculacao }}">
                 <input type="hidden" name="redirecionar_para" value="{{ aviso_pendencia.redirecionar_para or '' }}">
                 <input type="hidden" name="confirmar_apesar_de_pendencias" value="true">
-                <button type="submit" class="botao" style="background:#b3261e;">Sim, desvincular mesmo assim</button>
+                <button type="submit" class="botao botao-perigo">Sim, desvincular mesmo assim</button>
             </form>
             {% endif %}
-            <a href="/tecnicos/{{ tecnico }}" style="margin-left:10px; color:#7a2e24;">Cancelar</a>
+            <a href="/tecnicos/{{ tecnico }}" style="margin-left:10px; color:var(--terracota-600);">Cancelar</a>
         </div>
         {% endif %}
 
@@ -82,17 +82,34 @@
         {% if not eh_coordenador %}
         <p class="subtitulo">Dados cadastrais visíveis apenas para a coordenação.</p>
         {% elif tecnico_cadastro %}
-        <table style="width:100%; font-size:0.92rem; margin-bottom:18px;">
-            <tr><td style="color:var(--texto-600); padding:6px 0; width:40%;">RG</td><td>{{ tecnico_cadastro.rg or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">CPF</td><td>{{ tecnico_cadastro.cpf or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Contato</td><td>{{ tecnico_cadastro.contato or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">E-mail</td><td>{{ tecnico_cadastro.email or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Endereço</td><td>{{ tecnico_cadastro.endereco or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Município</td><td>{{ tecnico_cadastro.municipio or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Empresa</td><td>{{ tecnico_cadastro.empresa or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">CNPJ da empresa</td><td>{{ tecnico_cadastro.cnpj_empresa or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Capacitação metodológica</td><td>{{ tecnico_cadastro.mes_ano_capacitacao_metodologica.strftime("%m/%Y") if tecnico_cadastro.mes_ano_capacitacao_metodologica else "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Modalidade da capacitação</td><td>{{ tecnico_cadastro.modalidade_capacitacao_metodologica or "—" }}</td></tr>
+        <table class="tabela-dados">
+            <tr>
+                <td>RG</td>
+                <td>{{ tecnico_cadastro.rg or "—" }}</td>
+                <td>CPF</td>
+                <td>{{ tecnico_cadastro.cpf or "—" }}</td>
+                <td>Contato</td>
+                <td>{{ tecnico_cadastro.contato or "—" }}</td>
+            </tr>
+            <tr><td>E-mail</td><td colspan="5">{{ tecnico_cadastro.email or "—" }}</td></tr>
+            <tr>
+                <td>Endereço</td>
+                <td colspan="3">{{ tecnico_cadastro.endereco or "—" }}</td>
+                <td>Município</td>
+                <td>{{ tecnico_cadastro.municipio or "—" }}</td>
+            </tr>
+            <tr>
+                <td>Empresa</td>
+                <td colspan="3">{{ tecnico_cadastro.empresa or "—" }}</td>
+                <td>CNPJ da empresa</td>
+                <td>{{ tecnico_cadastro.cnpj_empresa or "—" }}</td>
+            </tr>
+            <tr>
+                <td>Capacitação metodológica</td>
+                <td>{{ tecnico_cadastro.mes_ano_capacitacao_metodologica.strftime("%m/%Y") if tecnico_cadastro.mes_ano_capacitacao_metodologica else "—" }}</td>
+                <td>Modalidade</td>
+                <td colspan="3">{{ tecnico_cadastro.modalidade_capacitacao_metodologica or "—" }}</td>
+            </tr>
         </table>
         <button type="button" class="botao" style="margin-bottom:18px;" onclick="document.getElementById('modal-editar-cadastro').showModal()">Editar cadastro</button>
         {% else %}
@@ -102,12 +119,12 @@
         {% if vinculo_ativo and (eh_meu or eh_coordenador) %}
         <!-- Vínculo ativo, é da MINHA equipe (ou eu sou coordenador): mostra os dados e as ações -->
         <h2>Vínculo atual</h2>
-        <table style="width:100%; font-size:0.92rem; margin-bottom:18px;">
-            <tr><td style="color:var(--texto-600); padding:6px 0; width:40%;">Projeto</td><td>{{ visita.projeto_consolidado or vinculo_ativo.projeto or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Atividade</td><td>{{ visita.atividade or vinculo_ativo.atividade or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Início do vínculo</td><td>{{ vinculo_ativo.data_inicio.strftime("%d/%m/%Y") }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Fim previsto</td><td>{{ vinculo_ativo.data_fim_prevista.strftime("%d/%m/%Y") if vinculo_ativo.data_fim_prevista else "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Situação</td><td><span class="status avaliado">Ativo</span></td></tr>
+        <table class="tabela-dados">
+            <tr><td>Projeto</td><td>{{ visita.projeto_consolidado or vinculo_ativo.projeto or "—" }}</td></tr>
+            <tr><td>Atividade</td><td>{{ visita.atividade or vinculo_ativo.atividade or "—" }}</td></tr>
+            <tr><td>Início do vínculo</td><td>{{ vinculo_ativo.data_inicio.strftime("%d/%m/%Y") }}</td></tr>
+            <tr><td>Fim previsto</td><td>{{ vinculo_ativo.data_fim_prevista.strftime("%d/%m/%Y") if vinculo_ativo.data_fim_prevista else "—" }}</td></tr>
+            <tr><td>Situação</td><td><span class="status avaliado">Ativo</span></td></tr>
         </table>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -116,8 +133,8 @@
             {% endif %}
             {% if eh_coordenador %}
             <button type="button" class="botao" onclick="document.getElementById('modal-editar-vinculo').showModal()">Editar vínculo</button>
-            <button type="button" class="botao" onclick="document.getElementById('modal-mudar-supervisor').showModal()">Desvincular Técnico</button>
-            <button type="button" class="botao" onclick="document.getElementById('modal-desativar-tecnico').showModal()">Desativar Técnico</button>
+            <button type="button" class="botao botao-perigo" onclick="document.getElementById('modal-mudar-supervisor').showModal()">Desvincular Técnico</button>
+            <button type="button" class="botao botao-perigo" onclick="document.getElementById('modal-desativar-tecnico').showModal()">Desativar Técnico</button>
             {% endif %}
         </div>
 
@@ -128,10 +145,10 @@
             Este técnico está hoje vinculado à equipe de <strong>{{ vinculo_ativo.supervisor }}</strong>.
             Para vinculá-lo a você, peça para o supervisor atual desvinculá-lo primeiro.
         </div>
-        <table style="width:100%; font-size:0.92rem; margin-top:14px;">
-            <tr><td style="color:var(--texto-600); padding:6px 0; width:40%;">Projeto</td><td>{{ visita.projeto_consolidado or vinculo_ativo.projeto or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Atividade</td><td>{{ visita.atividade or vinculo_ativo.atividade or "—" }}</td></tr>
-            <tr><td style="color:var(--texto-600); padding:6px 0;">Empresa</td><td>{{ vinculo_ativo.empresa or "—" }}</td></tr>
+        <table class="tabela-dados" style="margin-top:14px;">
+            <tr><td>Projeto</td><td>{{ visita.projeto_consolidado or vinculo_ativo.projeto or "—" }}</td></tr>
+            <tr><td>Atividade</td><td>{{ visita.atividade or vinculo_ativo.atividade or "—" }}</td></tr>
+            <tr><td>Empresa</td><td>{{ vinculo_ativo.empresa or "—" }}</td></tr>
         </table>
 
         {% else %}

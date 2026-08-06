@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Dashboard — {{ supervisor }}</title>
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=5">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
 <body>
@@ -116,10 +116,10 @@
                         label: 'Média final',
                         data: medias,
                         yAxisID: 'y',
-                        borderColor: '#2d6a4f',
+                        borderColor: '#2f7a52',
                         backgroundColor: 'rgba(74, 155, 116, 0.15)',
-                        pointBackgroundColor: '#d19a42',
-                        pointBorderColor: '#b9822f',
+                        pointBackgroundColor: '#b96b40',
+                        pointBorderColor: '#a85c33',
                         pointRadius: 5, pointHoverRadius: 7,
                         borderWidth: 3, tension: 0.25, fill: true, spanGaps: true,
                     },
@@ -129,7 +129,7 @@
                         data: qtd,
                         yAxisID: 'y1',
                         backgroundColor: 'rgba(209, 154, 66, 0.35)',
-                        borderColor: '#d19a42',
+                        borderColor: '#b96b40',
                         borderWidth: 1,
                         borderRadius: 4,
                     }
@@ -142,7 +142,7 @@
                 scales: {
                     y: {
                         position: 'left', min: 5, max: 10,
-                        ticks: { stepSize: 1 }, grid: { color: '#e2e6dc' },
+                        ticks: { stepSize: 1 }, grid: { color: '#e2e3da' },
                         title: { display: true, text: 'Média' }
                     },
                     y1: {

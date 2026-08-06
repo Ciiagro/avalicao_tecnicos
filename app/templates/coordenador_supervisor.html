@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ supervisor }} — {{ mes_referencia }}</title>
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v=5">
 </head>
 <body>
     <div class="container">
@@ -52,7 +52,7 @@
                 </span>
                 <span style="display:flex; align-items:center; gap:10px;">
                     {% if t.avaliado %}
-                        <a href="/comparar/{{ t.tecnico }}?sup={{ supervisor }}" style="font-size:0.82rem; color:#5c6d63; text-decoration:none; font-weight:600;">📈 Evolução</a>
+                        <a href="/comparar/{{ t.tecnico }}?sup={{ supervisor }}" style="font-size:0.82rem; color:#656058; text-decoration:none; font-weight:600;">📈 Evolução</a>
                         <a class="status avaliado" style="text-decoration:none;" href="/minhas-avaliacoes/{{ t.avaliacao_id }}">
                             ✔ Avaliado{% if t.nota_final is not none %} ({{ t.nota_final }}){% endif %}
                         </a>
