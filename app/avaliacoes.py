@@ -16,6 +16,10 @@ CAMPOS_NOTA = [
     "p10_desempenho_geral",
 ]
 
+# Coluna de "motivo" correspondente a cada pergunta — usada quando o
+# supervisor marca "Não se aplica" naquela pergunta específica.
+CAMPOS_MOTIVO = {campo: f"{campo}_motivo" for campo in CAMPOS_NOTA}
+
 TODOS_OS_CAMPOS = CAMPOS_NOTA  # não há mais campos de texto/Sim-Não no novo formulário
 
 # Palavra-chave curta de cada pergunta — usada na tabela resumida da tela de evolução.
@@ -71,7 +75,12 @@ def montar_blocos_para_exibicao(avaliacao: dict):
     blocos = []
     for titulo, campos in PERGUNTAS:
         itens = [
-            {"pergunta": pergunta, "resposta": avaliacao.get(campo)}
+            {
+                "pergunta": pergunta,
+                "resposta": avaliacao.get(campo),
+                "nao_se_aplica": avaliacao.get(campo) is None,
+                "motivo": avaliacao.get(CAMPOS_MOTIVO[campo]),
+            }
             for campo, pergunta in campos
         ]
         blocos.append({"titulo": titulo, "itens": itens})
@@ -136,11 +145,15 @@ def montar_tabela_comparativa(lista_avaliacoes: list[dict]):
     return meses, linhas, media_valores
 
 
-def calcular_nota_final(respostas: dict) -> float:
-    """Média das 10 notas (cada uma de 5 a 10): soma dividida por 10 —
-    resultado fica sempre entre 5.0 e 10.0."""
-    soma = sum(int(respostas[c]) for c in CAMPOS_NOTA)
-    return round(soma / len(CAMPOS_NOTA), 2)
+def calcular_nota_final(respostas: dict) -> float | None:
+    """Média das notas respondidas (cada uma de 5 a 10) — perguntas
+    marcadas como "Não se aplica" (valor None) NÃO entram nem na soma
+    nem na divisão. Se todas as 10 forem "Não se aplica", não tem como
+    calcular nota — devolve None (quem chama trata esse caso)."""
+    notas = [int(respostas[c]) for c in CAMPOS_NOTA if respostas.get(c) not in (None, "")]
+    if not notas:
+        return None
+    return round(sum(notas) / len(notas), 2)
 
 
 def ja_avaliado(supervisor: str, tecnico: str, mes_referencia) -> bool:
@@ -157,12 +170,27 @@ def ja_avaliado(supervisor: str, tecnico: str, mes_referencia) -> bool:
     return row is not None
 
 
-def salvar_avaliacao(supervisor: str, tecnico: str, mes_referencia, respostas: dict):
+def salvar_avaliacao(supervisor: str, tecnico: str, mes_referencia, respostas: dict, motivos: dict | None = None):
+    """
+    respostas: {campo: "5".."10" ou None (Não se aplica)}
+    motivos: {campo: texto do motivo}, obrigatório só pra quem está None em `respostas`
+             — a validação de "obrigatório" já é feita antes, na rota (main.py),
+             aqui só salva o que vier.
+    """
+    motivos = motivos or {}
     nota_final = calcular_nota_final(respostas)
-    colunas = ", ".join(TODOS_OS_CAMPOS)
-    placeholders = ", ".join(f":{c}" for c in TODOS_OS_CAMPOS)
 
-    params = {c: int(respostas[c]) for c in TODOS_OS_CAMPOS}
+    colunas_nota = ", ".join(TODOS_OS_CAMPOS)
+    colunas_motivo = ", ".join(CAMPOS_MOTIVO.values())
+    placeholders_nota = ", ".join(f":{c}" for c in TODOS_OS_CAMPOS)
+    placeholders_motivo = ", ".join(f":{CAMPOS_MOTIVO[c]}" for c in TODOS_OS_CAMPOS)
+
+    params = {}
+    for c in TODOS_OS_CAMPOS:
+        valor = respostas.get(c)
+        params[c] = int(valor) if valor not in (None, "") else None
+        params[CAMPOS_MOTIVO[c]] = motivos.get(c) or None
+
     params.update({
         "supervisor": supervisor,
         "tecnico": tecnico,
@@ -175,9 +203,9 @@ def salvar_avaliacao(supervisor: str, tecnico: str, mes_referencia, respostas: d
         conn.execute(
             text(f"""
                 INSERT INTO avaliacoes_tecnicos
-                    (supervisor, tecnico, mes_referencia, {colunas}, nota_final)
+                    (supervisor, tecnico, mes_referencia, {colunas_nota}, {colunas_motivo}, nota_final)
                 VALUES
-                    (:supervisor, :tecnico, :mes_referencia, {placeholders}, :nota_final)
+                    (:supervisor, :tecnico, :mes_referencia, {placeholders_nota}, {placeholders_motivo}, :nota_final)
                 ON CONFLICT (supervisor, tecnico, mes_referencia) DO NOTHING;
             """),
             params,

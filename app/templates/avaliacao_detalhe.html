@@ -33,6 +33,7 @@
             }
             .lista-perguntas-pergunta { font-size: 0.68rem; line-height: 1.15; }
             .lista-perguntas-resposta { font-size: 0.74rem; }
+            .lista-perguntas-motivo { font-size: 0.62rem !important; margin-top: 1px !important; }
 
             /* Cards de indicadores: compactos na impressão, sem gerar página extra */
             .grade-kpi {
@@ -134,7 +135,16 @@
             {% for item in bloco.itens %}
             <li>
                 <span class="lista-perguntas-pergunta">{{ item.pergunta }}</span>
-                <span class="lista-perguntas-resposta">{{ item.resposta if item.resposta not in (None, "") else "—" }}</span>
+                {% if item.nao_se_aplica %}
+                    <span class="lista-perguntas-resposta">Não se aplica</span>
+                    {% if item.motivo %}
+                        <div class="lista-perguntas-motivo" style="font-size:0.85em; opacity:.8; margin-top:2px;">
+                            Motivo: {{ item.motivo }}
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <span class="lista-perguntas-resposta">{{ item.resposta if item.resposta not in (None, "") else "—" }}</span>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>

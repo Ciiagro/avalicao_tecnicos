@@ -15,3 +15,11 @@ git push
 
 git commit --allow-empty -m "Força novo deploy na Vercel"
 git push origin main
+
+
+-- para resertar a senha dos usuarios_supervisores
+update public.usuarios_supervisores
+set senha_hash = '$2b$12$BIiAxKifUleB48.TpE/sjOe6VkazVyPu7RnK.4LibKgloAwmKmM0q',
+    precisa_trocar_senha = true,
+    atualizado_em = now()
+where login = 'antonio.pinheiro';

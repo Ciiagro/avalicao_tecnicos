@@ -1868,9 +1868,29 @@ async def salvar_avaliacao(request: Request, tecnico: str):
             detail="O prazo para avaliar este mês encerrou. Peça autorização ao coordenador.",
         )
 
-    respostas = {campo: form.get(campo) for campo in avaliacoes.TODOS_OS_CAMPOS}
+    respostas = {}
+    motivos = {}
+    for campo in avaliacoes.TODOS_OS_CAMPOS:
+        valor = form.get(campo)
+        if valor == "na":
+            respostas[campo] = None
+            motivo = (form.get(f"{campo}_motivo") or "").strip()
+            if not motivo:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Você marcou 'Não se aplica' numa pergunta sem preencher o motivo. Volte e complete antes de enviar.",
+                )
+            motivos[campo] = motivo
+        else:
+            respostas[campo] = valor
 
-    media = avaliacoes.salvar_avaliacao(supervisor, tecnico, mes_ref, respostas)
+    if all(v is None for v in respostas.values()):
+        raise HTTPException(
+            status_code=400,
+            detail="Não é possível enviar uma avaliação com todas as perguntas marcadas como 'Não se aplica'.",
+        )
+
+    media = avaliacoes.salvar_avaliacao(supervisor, tecnico, mes_ref, respostas, motivos)
 
     return templates.TemplateResponse(
         "sucesso.html",

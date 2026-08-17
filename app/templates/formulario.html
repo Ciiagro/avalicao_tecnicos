@@ -10,11 +10,24 @@
         <img src="/static/logo_sistema.png" alt="Logo" class="logo-institucional">
 
     {% macro nota(campo, texto) %}
-    <label>{{ texto }}</label>
-    <div class="escala-nota">
-        {% for n in range(5, 11) %}
-        <label><input type="radio" name="{{ campo }}" value="{{ n }}" required> {{ n }}</label>
-        {% endfor %}
+    <div class="bloco-pergunta">
+        <label>{{ texto }}</label>
+        <div class="escala-nota">
+            {% for n in range(5, 11) %}
+            <label><input type="radio" name="{{ campo }}" value="{{ n }}"
+                          onchange="alternarMotivo('{{ campo }}', false)" required> {{ n }}</label>
+            {% endfor %}
+            <label class="opcao-na">
+                <input type="radio" name="{{ campo }}" value="na"
+                       onchange="alternarMotivo('{{ campo }}', true)" required> Não se aplica
+            </label>
+        </div>
+        <div class="campo-motivo" id="motivo-{{ campo }}" style="display:none; margin-top:6px;">
+            <label for="{{ campo }}_motivo" style="font-weight:normal;">
+                Motivo (obrigatório, já que marcou "Não se aplica")
+            </label>
+            <input type="text" id="{{ campo }}_motivo" name="{{ campo }}_motivo" maxlength="500">
+        </div>
     </div>
     {% endmacro %}
 
@@ -87,7 +100,17 @@
         </select>
     </form>
 
-    <p class="subtitulo">Escala: 5 Muito Ruim · 6 Ruim · 7 Regular · 8 Bom · 9 Muito Bom · 10 Excelente</p>
+    <p class="subtitulo">Escala: 5 Muito Ruim · 6 Ruim · 7 Regular · 8 Bom · 9 Muito Bom · 10 Excelente · ou "Não se aplica"</p>
+
+    <script>
+        function alternarMotivo(campo, mostrar) {
+            const div = document.getElementById('motivo-' + campo);
+            const input = document.getElementById(campo + '_motivo');
+            div.style.display = mostrar ? 'block' : 'none';
+            input.required = mostrar;
+            if (!mostrar) { input.value = ''; }
+        }
+    </script>
 
     <form method="post" action="/avaliar/{{ tecnico }}">
         <input type="hidden" name="mes_referencia" value="{{ mes_referencia_valor }}">
