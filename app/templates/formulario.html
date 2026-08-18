@@ -9,24 +9,30 @@
 <div class="container">
         <img src="/static/logo_sistema.png" alt="Logo" class="logo-institucional">
 
-    {% macro nota(campo, texto) %}
+    {% macro nota(campo, texto, rascunho) %}
+    {% set valor_salvo = rascunho[campo] if rascunho and rascunho[campo] is not none else none %}
+    {% set motivo_salvo = rascunho[campo ~ '_motivo'] if rascunho else none %}
+    {% set na_selecionado = rascunho and rascunho[campo] is none and motivo_salvo %}
     <div class="bloco-pergunta">
         <label>{{ texto }}</label>
         <div class="escala-nota">
             {% for n in range(5, 11) %}
             <label><input type="radio" name="{{ campo }}" value="{{ n }}"
+                          {% if valor_salvo == n %}checked{% endif %}
                           onchange="alternarMotivo('{{ campo }}', false)" required> {{ n }}</label>
             {% endfor %}
             <label class="opcao-na">
                 <input type="radio" name="{{ campo }}" value="na"
+                       {% if na_selecionado %}checked{% endif %}
                        onchange="alternarMotivo('{{ campo }}', true)" required> Não se aplica
             </label>
         </div>
-        <div class="campo-motivo" id="motivo-{{ campo }}" style="display:none; margin-top:6px;">
+        <div class="campo-motivo" id="motivo-{{ campo }}" style="{{ 'display:block;' if na_selecionado else 'display:none;' }} margin-top:6px;">
             <label for="{{ campo }}_motivo" style="font-weight:normal;">
-                Motivo (obrigatório, já que marcou "Não se aplica")
+                Motivo (obrigatório pra enviar definitivamente, já que marcou "Não se aplica")
             </label>
-            <input type="text" id="{{ campo }}_motivo" name="{{ campo }}_motivo" maxlength="500">
+            <input type="text" id="{{ campo }}_motivo" name="{{ campo }}_motivo" maxlength="500"
+                   value="{{ motivo_salvo or '' }}" {% if na_selecionado %}required{% endif %}>
         </div>
     </div>
     {% endmacro %}
@@ -102,6 +108,16 @@
 
     <p class="subtitulo">Escala: 5 Muito Ruim · 6 Ruim · 7 Regular · 8 Bom · 9 Muito Bom · 10 Excelente · ou "Não se aplica"</p>
 
+    {% if request.query_params.get('rascunho_salvo') %}
+    <p class="subtitulo" style="background:#eaf7ea; padding:8px 12px; border-radius:6px; color:#1a6b1a;">
+        ✅ Rascunho salvo. Você pode continuar preenchendo agora ou voltar mais tarde — nada foi perdido.
+    </p>
+    {% elif rascunho %}
+    <p class="subtitulo" style="background:#fff6e0; padding:8px 12px; border-radius:6px; color:#7a5c00;">
+        📝 Você tem um rascunho salvo para este técnico/mês — as respostas já preenchidas foram recuperadas abaixo.
+    </p>
+    {% endif %}
+
     <script>
         function alternarMotivo(campo, mostrar) {
             const div = document.getElementById('motivo-' + campo);
@@ -110,23 +126,41 @@
             input.required = mostrar;
             if (!mostrar) { input.value = ''; }
         }
+
+        function confirmarEnvioFinal() {
+            return confirm(
+                'Depois de enviar definitivamente, esta avaliação NÃO poderá mais ser editada. ' +
+                'Se ainda não tem certeza de tudo, use "Salvar rascunho" em vez disso.\n\n' +
+                'Confirma o envio definitivo?'
+            );
+        }
     </script>
 
     <form method="post" action="/avaliar/{{ tecnico }}">
         <input type="hidden" name="mes_referencia" value="{{ mes_referencia_valor }}">
 
-        {{ nota("p1_dominio_metodologia", "1. Como você avalia o domínio do técnico sobre a metodologia ATeG durante a execução das visitas?") }}
-        {{ nota("p2_qualidade_orientacoes", "2. Como você avalia a qualidade das orientações técnicas/gerenciais repassadas aos produtores?") }}
-        {{ nota("p3_planejamento", "3. Como você avalia a elaboração e execução do planejamento (metas, matriz SWOT e plano de ação)?") }}
-        {{ nota("p4_registros_sisateg", "4. Como você avalia a qualidade dos registros realizados no SISATEG (check-in, check-out, fotos, localização e preenchimento dos dados produtivos, receitas e despesas e inventário de recursos)?") }}
-        {{ nota("p5_relatorios_mensais", "5. Como você avalia a qualidade técnica e a consistência dos relatórios mensais elaborados pelo técnico?") }}
-        {{ nota("p6_cumprimento_prazos", "6. Como você avalia o cumprimento dos prazos para envio de relatórios e demais atividades?") }}
-        {{ nota("p7_acompanhamento_evolucao", "7. Como você avalia a capacidade do técnico em acompanhar a evolução das propriedades e verificar o cumprimento das recomendações anteriores?") }}
-        {{ nota("p8_comunicacao_produtores", "8. Como você avalia a comunicação e o relacionamento do técnico com os produtores rurais?") }}
-        {{ nota("p9_comprometimento_normas", "9. Como você avalia o comprometimento do técnico com as orientações da supervisão e as normas do programa ATeG?") }}
-        {{ nota("p10_desempenho_geral", "10. Considerando o desempenho geral, como você avalia a atuação do técnico no programa ATeG?") }}
+        {{ nota("p1_dominio_metodologia", "1. Como você avalia o domínio do técnico sobre a metodologia ATeG durante a execução das visitas?", rascunho) }}
+        {{ nota("p2_qualidade_orientacoes", "2. Como você avalia a qualidade das orientações técnicas/gerenciais repassadas aos produtores?", rascunho) }}
+        {{ nota("p3_planejamento", "3. Como você avalia a elaboração e execução do planejamento (metas, matriz SWOT e plano de ação)?", rascunho) }}
+        {{ nota("p4_registros_sisateg", "4. Como você avalia a qualidade dos registros realizados no SISATEG (check-in, check-out, fotos, localização e preenchimento dos dados produtivos, receitas e despesas e inventário de recursos)?", rascunho) }}
+        {{ nota("p5_relatorios_mensais", "5. Como você avalia a qualidade técnica e a consistência dos relatórios mensais elaborados pelo técnico?", rascunho) }}
+        {{ nota("p6_cumprimento_prazos", "6. Como você avalia o cumprimento dos prazos para envio de relatórios e demais atividades?", rascunho) }}
+        {{ nota("p7_acompanhamento_evolucao", "7. Como você avalia a capacidade do técnico em acompanhar a evolução das propriedades e verificar o cumprimento das recomendações anteriores?", rascunho) }}
+        {{ nota("p8_comunicacao_produtores", "8. Como você avalia a comunicação e o relacionamento do técnico com os produtores rurais?", rascunho) }}
+        {{ nota("p9_comprometimento_normas", "9. Como você avalia o comprometimento do técnico com as orientações da supervisão e as normas do programa ATeG?", rascunho) }}
+        {{ nota("p10_desempenho_geral", "10. Considerando o desempenho geral, como você avalia a atuação do técnico no programa ATeG?", rascunho) }}
 
-        <button type="submit">Enviar avaliação</button>
+        <div style="display:flex; gap:12px; align-items:center; margin-top:12px;">
+            <button type="submit" name="acao" value="rascunho" formnovalidate
+                    style="background:#888;">💾 Salvar rascunho</button>
+            <button type="submit" name="acao" value="finalizar" onclick="return confirmarEnvioFinal();">
+                ✅ Enviar avaliação definitiva
+            </button>
+        </div>
+        <p class="subtitulo" style="margin-top:8px;">
+            "Salvar rascunho" pode ficar incompleto e ser editado depois. "Enviar avaliação definitiva" exige
+            tudo preenchido e <strong>não pode mais ser desfeito</strong> depois de enviado.
+        </p>
     </form>
 </div>
 </body>

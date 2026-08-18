@@ -1826,6 +1826,7 @@ def tela_avaliar(request: Request, tecnico: str, mes: str | None = Query(default
         )
 
     resumo_visitas = repositorio.resumo_visitas_tecnico(tecnico, mes_ref)
+    rascunho = avaliacoes.buscar_rascunho(supervisor, tecnico, mes_ref)
 
     return templates.TemplateResponse(
         "formulario.html",
@@ -1837,6 +1838,7 @@ def tela_avaliar(request: Request, tecnico: str, mes: str | None = Query(default
             "mes_referencia_valor": mes_ref.strftime("%Y-%m"),
             "meses_disponiveis": meses_disponiveis,
             "resumo_visitas": resumo_visitas,
+            "rascunho": rascunho,
         },
     )
 
@@ -1868,6 +1870,9 @@ async def salvar_avaliacao(request: Request, tecnico: str):
             detail="O prazo para avaliar este mês encerrou. Peça autorização ao coordenador.",
         )
 
+    acao = form.get("acao", "finalizar")  # "rascunho" ou "finalizar"
+    finalizar = acao == "finalizar"
+
     respostas = {}
     motivos = {}
     for campo in avaliacoes.TODOS_OS_CAMPOS:
@@ -1875,22 +1880,37 @@ async def salvar_avaliacao(request: Request, tecnico: str):
         if valor == "na":
             respostas[campo] = None
             motivo = (form.get(f"{campo}_motivo") or "").strip()
-            if not motivo:
+            if not motivo and finalizar:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Você marcou 'Não se aplica' numa pergunta sem preencher o motivo. Volte e complete antes de enviar.",
+                    detail="Você marcou 'Não se aplica' numa pergunta sem preencher o motivo. Volte e complete antes de enviar.",
                 )
             motivos[campo] = motivo
         else:
-            respostas[campo] = valor
+            respostas[campo] = valor or None
 
-    if all(v is None for v in respostas.values()):
-        raise HTTPException(
-            status_code=400,
-            detail="Não é possível enviar uma avaliação com todas as perguntas marcadas como 'Não se aplica'.",
+    if finalizar:
+        # Enviar de vez exige as 10 perguntas resolvidas (nota OU "não se
+        # aplica" + motivo) — não pode sobrar nenhuma em branco.
+        faltando = [c for c in avaliacoes.TODOS_OS_CAMPOS if respostas.get(c) is None and not motivos.get(c)]
+        if faltando:
+            raise HTTPException(
+                status_code=400,
+                detail="Ainda tem pergunta sem resposta. Preencha uma nota ou marque 'Não se aplica' com o motivo em todas antes de enviar definitivamente.",
+            )
+    else:
+        # Rascunho: pode salvar mesmo em branco, mas se marcou "Não se
+        # aplica" numa pergunta específica, o motivo dela continua obrigatório
+        # (já barrado lá em cima). Nenhuma outra exigência aqui.
+        pass
+
+    media = avaliacoes.salvar_avaliacao(supervisor, tecnico, mes_ref, respostas, motivos, finalizar=finalizar)
+
+    if not finalizar:
+        return RedirectResponse(
+            f"/avaliar/{tecnico}?mes={mes_ref.strftime('%Y-%m')}&rascunho_salvo=1",
+            status_code=303,
         )
-
-    media = avaliacoes.salvar_avaliacao(supervisor, tecnico, mes_ref, respostas, motivos)
 
     return templates.TemplateResponse(
         "sucesso.html",

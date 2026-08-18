@@ -156,34 +156,74 @@ def calcular_nota_final(respostas: dict) -> float | None:
     return round(sum(notas) / len(notas), 2)
 
 
-def ja_avaliado(supervisor: str, tecnico: str, mes_referencia) -> bool:
+def situacao_avaliacao(supervisor: str, tecnico: str, mes_referencia) -> str | None:
+    """Devolve 'rascunho', 'finalizada', ou None (não existe nenhuma ainda)."""
     engine = get_engine()
     with engine.connect() as conn:
         row = conn.execute(
             text("""
-                SELECT 1 FROM avaliacoes_tecnicos
+                SELECT status FROM avaliacoes_tecnicos
                 WHERE supervisor = :supervisor AND tecnico = :tecnico
                   AND mes_referencia = :mes_referencia;
             """),
             {"supervisor": supervisor, "tecnico": tecnico, "mes_referencia": mes_referencia},
         ).fetchone()
-    return row is not None
+    return row[0] if row else None
 
 
-def salvar_avaliacao(supervisor: str, tecnico: str, mes_referencia, respostas: dict, motivos: dict | None = None):
+def ja_avaliado(supervisor: str, tecnico: str, mes_referencia) -> bool:
+    """Só conta como 'já avaliado' (travado, sem poder reabrir) quando está
+    FINALIZADA. Um rascunho não bloqueia — a pessoa pode reabrir e continuar."""
+    return situacao_avaliacao(supervisor, tecnico, mes_referencia) == "finalizada"
+
+
+def buscar_rascunho(supervisor: str, tecnico: str, mes_referencia) -> dict | None:
+    """Busca um rascunho salvo (se existir) pra pré-preencher o formulário
+    quando a pessoa reabre pra continuar de onde parou."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT * FROM avaliacoes_tecnicos
+                WHERE supervisor = :supervisor AND tecnico = :tecnico
+                  AND mes_referencia = :mes_referencia AND status = 'rascunho';
+            """),
+            {"supervisor": supervisor, "tecnico": tecnico, "mes_referencia": mes_referencia},
+        ).mappings().fetchone()
+    return dict(row) if row else None
+
+
+def salvar_avaliacao(
+    supervisor: str,
+    tecnico: str,
+    mes_referencia,
+    respostas: dict,
+    motivos: dict | None = None,
+    finalizar: bool = True,
+):
     """
-    respostas: {campo: "5".."10" ou None (Não se aplica)}
-    motivos: {campo: texto do motivo}, obrigatório só pra quem está None em `respostas`
-             — a validação de "obrigatório" já é feita antes, na rota (main.py),
-             aqui só salva o que vier.
+    respostas: {campo: "5".."10" ou None (Não se aplica / não respondido ainda)}
+    motivos: {campo: texto do motivo}, obrigatório (validado em main.py) só pra
+             quem está None em `respostas` E a avaliação está sendo finalizada.
+    finalizar: True = grava como 'finalizada' (trava, sem volta). False = grava
+               como 'rascunho' (pode reabrir e editar depois, à vontade).
+
+    Se já existir um RASCUNHO salvo antes pra esse supervisor+técnico+mês,
+    esse rascunho é atualizado (sobrescrito) — nunca duplica linha. Uma
+    avaliação já FINALIZADA nunca é sobrescrita por este método (a trava
+    de "já avaliado" em main.py já impede isso antes de chegar aqui, mas
+    o próprio SQL abaixo também protege, por segurança).
     """
     motivos = motivos or {}
     nota_final = calcular_nota_final(respostas)
+    status = "finalizada" if finalizar else "rascunho"
 
     colunas_nota = ", ".join(TODOS_OS_CAMPOS)
     colunas_motivo = ", ".join(CAMPOS_MOTIVO.values())
     placeholders_nota = ", ".join(f":{c}" for c in TODOS_OS_CAMPOS)
     placeholders_motivo = ", ".join(f":{CAMPOS_MOTIVO[c]}" for c in TODOS_OS_CAMPOS)
+    sets_nota = ", ".join(f"{c} = :{c}" for c in TODOS_OS_CAMPOS)
+    sets_motivo = ", ".join(f"{CAMPOS_MOTIVO[c]} = :{CAMPOS_MOTIVO[c]}" for c in TODOS_OS_CAMPOS)
 
     params = {}
     for c in TODOS_OS_CAMPOS:
@@ -196,6 +236,7 @@ def salvar_avaliacao(supervisor: str, tecnico: str, mes_referencia, respostas: d
         "tecnico": tecnico,
         "mes_referencia": mes_referencia,
         "nota_final": nota_final,
+        "status": status,
     })
 
     engine = get_engine()
@@ -203,10 +244,12 @@ def salvar_avaliacao(supervisor: str, tecnico: str, mes_referencia, respostas: d
         conn.execute(
             text(f"""
                 INSERT INTO avaliacoes_tecnicos
-                    (supervisor, tecnico, mes_referencia, {colunas_nota}, {colunas_motivo}, nota_final)
+                    (supervisor, tecnico, mes_referencia, {colunas_nota}, {colunas_motivo}, nota_final, status)
                 VALUES
-                    (:supervisor, :tecnico, :mes_referencia, {placeholders_nota}, {placeholders_motivo}, :nota_final)
-                ON CONFLICT (supervisor, tecnico, mes_referencia) DO NOTHING;
+                    (:supervisor, :tecnico, :mes_referencia, {placeholders_nota}, {placeholders_motivo}, :nota_final, :status)
+                ON CONFLICT (supervisor, tecnico, mes_referencia) DO UPDATE SET
+                    {sets_nota}, {sets_motivo}, nota_final = :nota_final, status = :status
+                WHERE avaliacoes_tecnicos.status = 'rascunho';
             """),
             params,
         )
