@@ -156,7 +156,7 @@ def listar_tecnicos_avaliados_pelo_supervisor(supervisor: str):
             text("""
                 SELECT DISTINCT tecnico
                 FROM avaliacoes_tecnicos
-                WHERE supervisor = :supervisor
+                WHERE supervisor = :supervisor AND status = 'finalizada'
                 ORDER BY tecnico;
             """),
             {"supervisor": supervisor},
@@ -728,13 +728,14 @@ def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
-                SELECT id, tecnico
+                SELECT id, tecnico, status
                 FROM avaliacoes_tecnicos
                 WHERE supervisor = :supervisor AND mes_referencia = :mes_ref;
             """),
             {"supervisor": supervisor, "mes_ref": mes_ref},
         ).fetchall()
     avaliacao_id_por_tecnico = {r.tecnico: r.id for r in rows}
+    status_por_tecnico = {r.tecnico: r.status for r in rows}
 
     nao_avaliar_por_tecnico = obter_nao_avaliar_do_mes(supervisor, mes_ref)
 
@@ -743,7 +744,8 @@ def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):
     return [
         {
             "tecnico": t,
-            "avaliado": t in avaliacao_id_por_tecnico,
+            "avaliado": status_por_tecnico.get(t) == "finalizada",
+            "rascunho": status_por_tecnico.get(t) == "rascunho",
             "avaliacao_id": avaliacao_id_por_tecnico.get(t),
             "nao_avaliar": t in nao_avaliar_por_tecnico,
             "observacao_nao_avaliar": nao_avaliar_por_tecnico.get(t),
@@ -827,7 +829,7 @@ def avaliacoes_do_supervisor(supervisor: str):
             text("""
                 SELECT id, tecnico, mes_referencia, nota_final, data_avaliacao
                 FROM avaliacoes_tecnicos
-                WHERE supervisor = :supervisor
+                WHERE supervisor = :supervisor AND status = 'finalizada'
                 ORDER BY mes_referencia DESC, tecnico ASC;
             """),
             {"supervisor": supervisor},
@@ -868,6 +870,7 @@ def avaliacoes_geral():
             text("""
                 SELECT id, supervisor, tecnico, mes_referencia, nota_final, data_avaliacao
                 FROM avaliacoes_tecnicos
+                WHERE status = 'finalizada'
                 ORDER BY mes_referencia DESC, supervisor ASC, tecnico ASC;
             """),
         ).fetchall()
@@ -934,7 +937,7 @@ def avaliacoes_do_tecnico(supervisor: str, tecnico: str):
         rows = conn.execute(
             text("""
                 SELECT * FROM avaliacoes_tecnicos
-                WHERE supervisor = :supervisor AND tecnico = :tecnico
+                WHERE supervisor = :supervisor AND tecnico = :tecnico AND status = 'finalizada'
                 ORDER BY mes_referencia ASC;
             """),
             {"supervisor": supervisor, "tecnico": tecnico},
@@ -982,7 +985,7 @@ def resumo_supervisores_para_mes(mes_ref: date):
             text("""
                 SELECT supervisor, tecnico, nota_final
                 FROM avaliacoes_tecnicos
-                WHERE mes_referencia = :mes_ref;
+                WHERE mes_referencia = :mes_ref AND status = 'finalizada';
             """),
             {"mes_ref": mes_ref},
         ).fetchall()
@@ -1059,6 +1062,7 @@ def ranking_tecnicos_do_supervisor(supervisor: str, mes_ref: date):
                 SELECT tecnico, nota_final
                 FROM avaliacoes_tecnicos
                 WHERE supervisor = :supervisor AND mes_referencia = :mes_ref
+                  AND status = 'finalizada'
                 ORDER BY nota_final DESC NULLS LAST, tecnico ASC;
             """),
             {"supervisor": supervisor, "mes_ref": mes_ref},
@@ -1080,7 +1084,7 @@ def ranking_geral_tecnicos(mes_ref: date):
             text("""
                 SELECT supervisor, tecnico, nota_final
                 FROM avaliacoes_tecnicos
-                WHERE mes_referencia = :mes_ref
+                WHERE mes_referencia = :mes_ref AND status = 'finalizada'
                 ORDER BY nota_final DESC NULLS LAST, tecnico ASC;
             """),
             {"mes_ref": mes_ref},
@@ -1117,6 +1121,7 @@ def melhor_tecnico_do_supervisor(supervisor: str, mes_ref: date):
                 SELECT tecnico, nota_final
                 FROM avaliacoes_tecnicos
                 WHERE supervisor = :supervisor AND mes_referencia = :mes_ref
+                  AND status = 'finalizada'
                 ORDER BY nota_final DESC NULLS LAST, tecnico ASC
                 LIMIT 1;
             """),
@@ -1140,7 +1145,7 @@ def visao_geral_mes(mes_ref: date):
             text("""
                 SELECT AVG(nota_final) AS media
                 FROM avaliacoes_tecnicos
-                WHERE mes_referencia = :mes_ref;
+                WHERE mes_referencia = :mes_ref AND status = 'finalizada';
             """),
             {"mes_ref": mes_ref},
         ).fetchone()
@@ -1180,7 +1185,7 @@ def avaliacoes_completas_mes(mes_ref: date, supervisor: str | None = None):
     só as dele; senão traz de todos (visão do coordenador).
     """
     engine = get_engine()
-    query = "SELECT * FROM avaliacoes_tecnicos WHERE mes_referencia = :mes_ref"
+    query = "SELECT * FROM avaliacoes_tecnicos WHERE mes_referencia = :mes_ref AND status = 'finalizada'"
     params = {"mes_ref": mes_ref}
     if supervisor:
         query += " AND supervisor = :supervisor"
@@ -1203,7 +1208,7 @@ def dados_para_exportar(mes_ref: date, supervisor: str | None = None):
     query = """
         SELECT supervisor, tecnico, nota_final, mes_referencia
         FROM avaliacoes_tecnicos
-        WHERE mes_referencia = :mes_ref
+        WHERE mes_referencia = :mes_ref AND status = 'finalizada'
     """
     params = {"mes_ref": mes_ref}
     if supervisor:
@@ -1239,13 +1244,16 @@ def tecnicos_com_avaliacao_para_mes(supervisor: str, mes_ref: date):
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
-                SELECT id, tecnico, nota_final
+                SELECT id, tecnico, nota_final, status
                 FROM avaliacoes_tecnicos
                 WHERE supervisor = :supervisor AND mes_referencia = :mes_ref;
             """),
             {"supervisor": supervisor, "mes_ref": mes_ref},
         ).fetchall()
-    avaliacoes_por_tecnico = {r.tecnico: r for r in rows}
+    # Só conta como avaliação de verdade pro coordenador quando está
+    # FINALIZADA — um rascunho ainda não é uma avaliação, então continua
+    # aparecendo como "Pendente" pra ele, sem entrar em média/ranking.
+    avaliacoes_por_tecnico = {r.tecnico: r for r in rows if r.status == "finalizada"}
 
     nao_avaliar_por_tecnico = obter_nao_avaliar_do_mes(supervisor, mes_ref)
 

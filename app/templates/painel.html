@@ -103,13 +103,18 @@
                     {% elif t.avaliado %}
                         <a href="/comparar/{{ t.tecnico | urlencode }}" style="font-size:0.82rem; color:#656058; text-decoration:none; font-weight:600;">📈 Evolução</a>
                         <a class="status avaliado" href="/minhas-avaliacoes/{{ t.avaliacao_id }}" style="text-decoration:none;">✔ Avaliado · ver detalhe</a>
+                    {% elif t.rascunho %}
+                        <a class="status rascunho" href="/avaliar/{{ t.tecnico }}?mes={{ mes_valor }}"
+                           style="text-decoration:none; background:#fff6e0; border:1px solid #e0c46b; color:#7a5c00; border-radius:6px; padding:6px 10px; font-size:0.78rem; font-weight:700;">
+                            📝 Em rascunho · continuar
+                        </a>
                     {% else %}
                         <a href="/avaliar/{{ t.tecnico }}?mes={{ mes_valor }}" style="background:none; border:1px solid var(--verde-500); border-radius:6px; padding:6px 10px; font-size:0.78rem; cursor:pointer; color:var(--verde-700); font-weight:700; text-decoration:none; box-shadow:none; margin:0;">Avaliar</a>
                         <button type="button" onclick="document.getElementById('nao-avaliar-{{ loop.index }}').style.display='flex';" style="background:none; border:1px solid #c9c2b3; border-radius:6px; padding:6px 10px; font-size:0.78rem; cursor:pointer; color:#8a6d3b;">Não avaliar</button>
                     {% endif %}
                 </span>
             </li>
-            {% if not t.nao_avaliar and not t.avaliado %}
+            {% if not t.nao_avaliar and not t.avaliado and not t.rascunho %}
             <li id="nao-avaliar-{{ loop.index }}" style="display:none; flex-direction:column; align-items:flex-start; gap:6px; background:#faf6ee; border-radius:8px; margin-top:-6px;">
                 <div style="display:flex; gap:6px; flex-wrap:wrap;">
                     <button type="button" onclick="document.getElementById('obs-{{ loop.index }}').value='Não iniciou atividade';" style="background:#fff; border:1px solid #d8d2c2; border-radius:14px; padding:3px 10px; font-size:0.76rem; cursor:pointer; color:#656058;">Não iniciou atividade</button>
