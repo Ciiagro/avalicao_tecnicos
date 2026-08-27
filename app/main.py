@@ -304,7 +304,9 @@ def painel(request: Request, mes: str | None = Query(default=None)):
     media_propria = round(sum(medias_validas) / len(medias_validas), 2) if medias_validas else None
 
     data_limite = repositorio.data_limite_do_mes(mes_ref)
-    prazo_encerrado = date.today() > data_limite
+    # Só mostra o aviso de prazo encerrado (e a necessidade de autorização)
+    # quando ainda existe algum técnico pendente de avaliação.
+    prazo_encerrado = date.today() > data_limite and pendentes > 0
     autorizado_apos_prazo = repositorio.existe_autorizacao(supervisor, mes_ref) if prazo_encerrado else False
 
     return templates.TemplateResponse(
@@ -1671,7 +1673,12 @@ def painel_coordenador_supervisor(request: Request, supervisor: str, mes: str | 
     mes_ref = resolver_mes_escolhido(mes)
     tecnicos = repositorio.tecnicos_com_avaliacao_para_mes(supervisor, mes_ref)
 
-    prazo_encerrado = repositorio.prazo_do_mes_encerrado(mes_ref)
+    # Só faz sentido mostrar o aviso de "prazo encerrado" (e pedir autorização)
+    # quando ainda existe algum técnico pendente — se todos já foram avaliados
+    # (ou marcados como "não avaliar"), não há nada esperando autorização.
+    existe_pendente = any(not t["avaliado"] and not t["nao_avaliar"] for t in tecnicos)
+
+    prazo_encerrado = repositorio.prazo_do_mes_encerrado(mes_ref) and existe_pendente
     autorizado = repositorio.existe_autorizacao(supervisor, mes_ref) if prazo_encerrado else False
 
     return templates.TemplateResponse(
