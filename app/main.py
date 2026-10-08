@@ -665,6 +665,7 @@ def tela_detalhe_tecnico(
     aviso_pendencia_novo_supervisor: str | None = Query(default=None),
     aviso_pendencia_data_inicio: str | None = Query(default=None),
     aviso_pendencia_data_fim_prevista: str | None = Query(default=None),
+    erro_historico: str | None = Query(default=None),
 ):
     supervisor = supervisor_logado(request)
     if not supervisor:
@@ -725,6 +726,7 @@ def tela_detalhe_tecnico(
             "tecnico_cadastro": tecnico_cadastro,
             "motivos_desativacao_tecnico": repositorio.MOTIVOS_DESATIVACAO_TECNICO,
             "aviso_pendencia": aviso_pendencia,
+            "erro_historico": erro_historico,
         },
     )
 
@@ -792,6 +794,36 @@ def editar_vinculo_tecnico(
         data_fim_prevista=_parse_data_opcional(data_fim_prevista),
     )
     return RedirectResponse(f"/tecnicos/{tecnico}", status_code=303)
+
+
+@app.post("/tecnicos/historico/editar-datas")
+def editar_datas_historico_vinculo(
+    request: Request,
+    vinculo_id: int = Form(...),
+    tecnico: str = Form(...),
+    data_inicio: str = Form(...),
+    data_desvinculacao: str = Form(...),
+    ajustar_vinculo_seguinte: bool = Form(False),
+):
+    """Corrige início e data de desvinculação de um vínculo do HISTÓRICO.
+    Restrito à coordenação. Erros de validação voltam para a tela do técnico
+    com a mensagem (?erro_historico=...)."""
+    if not supervisor_logado(request):
+        return RedirectResponse("/login", status_code=303)
+    if request.session.get("tipo") != "coordenador":
+        raise HTTPException(status_code=403, detail="Editar histórico é restrito à coordenação.")
+    try:
+        repositorio_vinculo_tecnico.editar_datas_historico(
+            vinculo_id=vinculo_id,
+            data_inicio=_parse_data_opcional(data_inicio),
+            data_desvinculacao=_parse_data_opcional(data_desvinculacao),
+            ajustar_vinculo_seguinte=ajustar_vinculo_seguinte,
+        )
+    except ValueError as e:
+        return RedirectResponse(
+            f"/tecnicos/{quote(tecnico)}?erro_historico={quote(str(e))}", status_code=303
+        )
+    return RedirectResponse(f"/tecnicos/{quote(tecnico)}", status_code=303)
 
 
 @app.post("/tecnicos/mudar-supervisor")

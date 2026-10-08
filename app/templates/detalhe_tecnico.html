@@ -200,6 +200,9 @@
         {% endif %}
         {% endif %}
 
+        {% if erro_historico %}
+        <div class="aviso" style="border-left:4px solid #b5482a;">{{ erro_historico }}</div>
+        {% endif %}
         {% if historico %}
         <h2 style="margin-top: 28px;">Histórico de vínculos anteriores</h2>
         <ul class="historico-vinculo">
@@ -208,11 +211,57 @@
                 <strong>{{ h.supervisor }}</strong>{% if h.projeto %} — {{ h.projeto }}{% endif %}
                 — de {{ h.data_inicio.strftime("%d/%m/%Y") }} até {{ h.data_desvinculacao.strftime("%d/%m/%Y") }}
                 <span class="motivo">Motivo: {{ h.motivo_desvinculacao }}</span>
+                {% if eh_coordenador %}
+                <button type="button" class="botao" style="margin-left:10px; padding:2px 10px; font-size:0.85em;"
+                        data-id="{{ h.id }}"
+                        data-supervisor="{{ h.supervisor }}"
+                        data-inicio="{{ h.data_inicio.strftime('%Y-%m-%d') }}"
+                        data-fim="{{ h.data_desvinculacao.strftime('%Y-%m-%d') }}"
+                        onclick="abrirEditarHistorico(this)">Editar datas</button>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
         {% endif %}
     </div>
+
+    {% if historico and eh_coordenador %}
+    <!-- Modal: editar datas de um vínculo do histórico -->
+    <dialog id="modal-editar-historico" style="border: none; border-radius: 14px; padding: 0; box-shadow: var(--sombra);">
+        <form method="post" action="/tecnicos/historico/editar-datas" style="padding: 24px 28px; min-width: 320px; max-width: 420px;">
+            <h2 style="margin-top:0;">Editar datas do vínculo</h2>
+            <input type="hidden" name="vinculo_id" id="hist-vinculo-id">
+            <input type="hidden" name="tecnico" value="{{ tecnico }}">
+            <p class="subtitulo" style="margin-top:0;">Supervisor: <strong id="hist-supervisor"></strong></p>
+
+            <label>Início do vínculo</label>
+            <input type="date" name="data_inicio" id="hist-inicio" required>
+
+            <label>Data de desvinculação</label>
+            <input type="date" name="data_desvinculacao" id="hist-fim" required>
+
+            <label style="display:flex; gap:8px; align-items:flex-start; margin-top:14px; font-weight:normal;">
+                <input type="checkbox" name="ajustar_vinculo_seguinte" value="true" checked style="margin-top:4px;">
+                <span>Acertar também o início do vínculo seguinte (novo supervisor) para a mesma data,
+                quando ele começava no dia em que este terminava.</span>
+            </label>
+
+            <div style="display:flex; gap:10px; margin-top:18px;">
+                <button type="submit" class="botao botao-dourado">Salvar</button>
+                <button type="button" class="botao" onclick="document.getElementById('modal-editar-historico').close()">Cancelar</button>
+            </div>
+        </form>
+    </dialog>
+    <script>
+        function abrirEditarHistorico(btn) {
+            document.getElementById('hist-vinculo-id').value = btn.dataset.id;
+            document.getElementById('hist-supervisor').textContent = btn.dataset.supervisor;
+            document.getElementById('hist-inicio').value = btn.dataset.inicio;
+            document.getElementById('hist-fim').value = btn.dataset.fim;
+            document.getElementById('modal-editar-historico').showModal();
+        }
+    </script>
+    {% endif %}
 
     {% if tecnico_cadastro and eh_coordenador %}
     <dialog id="modal-editar-cadastro" style="border: none; border-radius: 14px; padding: 0; box-shadow: var(--sombra);">

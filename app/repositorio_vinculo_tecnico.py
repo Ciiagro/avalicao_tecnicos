@@ -727,3 +727,80 @@ def desvincular_vinculo(vinculo_id: int, data_desvinculacao, motivo: str):
             """),
             {"id": vinculo_id, "data_desvinculacao": data_desvinculacao, "motivo": motivo},
         )
+
+
+def editar_datas_historico(vinculo_id: int, data_inicio, data_desvinculacao,
+                           ajustar_vinculo_seguinte: bool = True):
+    """
+    Corrige as datas de um vínculo JÁ ENCERRADO (histórico): início e data de
+    desvinculação. Nunca apaga nada; só altera as duas datas.
+
+    Valida:
+      - o vínculo precisa estar encerrado (para o ativo use editar_datas_vinculo);
+      - data_desvinculacao >= data_inicio;
+      - o novo período não pode se sobrepor a outro vínculo do mesmo técnico
+        (encostar na mesma data é permitido — é o caso normal de transferência).
+
+    Se ajustar_vinculo_seguinte=True e a data de desvinculação mudou, o vínculo
+    do mesmo técnico que COMEÇAVA exatamente na data antiga (o do novo
+    supervisor, numa transferência) passa a começar na data nova, para o
+    encadeamento continuar sem buraco nem sobreposição.
+
+    Levanta ValueError com mensagem pronta para mostrar ao usuário.
+    """
+    atual = obter_vinculo(vinculo_id)
+    if atual is None:
+        raise ValueError("Vínculo não encontrado.")
+    if atual["data_desvinculacao"] is None:
+        raise ValueError("Este vínculo ainda está ativo; use \"Editar vínculo\".")
+    if data_inicio is None or data_desvinculacao is None:
+        raise ValueError("Informe a data de início e a data de desvinculação.")
+    if data_desvinculacao < data_inicio:
+        raise ValueError("A data de desvinculação não pode ser anterior à data de início.")
+
+    antiga_desv = atual["data_desvinculacao"]
+    todos = [v for v in historico_tecnico(atual["tecnico"]) if v["id"] != vinculo_id]
+
+    # Vínculo(s) que começavam exatamente onde este terminava (transferência)
+    seguintes = []
+    if ajustar_vinculo_seguinte and data_desvinculacao != antiga_desv:
+        for v in todos:
+            if v["data_inicio"] == antiga_desv and v["supervisor"] != atual["supervisor"]:
+                fim_v = v["data_desvinculacao"]
+                if fim_v is not None and data_desvinculacao > fim_v:
+                    raise ValueError(
+                        f"A nova data ({data_desvinculacao:%d/%m/%Y}) passa do fim do vínculo "
+                        f"seguinte de {v['supervisor']} ({fim_v:%d/%m/%Y})."
+                    )
+                seguintes.append(v)
+    ids_seguintes = {v["id"] for v in seguintes}
+
+    # Sobreposição com qualquer outro vínculo (exceto os que vamos reajustar)
+    for v in todos:
+        if v["id"] in ids_seguintes:
+            continue
+        ini = v["data_inicio"]
+        fim = v["data_desvinculacao"] or date.max
+        if ini < data_desvinculacao and fim > data_inicio:
+            fim_txt = f"{fim:%d/%m/%Y}" if v["data_desvinculacao"] else "hoje"
+            raise ValueError(
+                f"O período {data_inicio:%d/%m/%Y} a {data_desvinculacao:%d/%m/%Y} se sobrepõe ao "
+                f"vínculo de {v['supervisor']} ({ini:%d/%m/%Y} a {fim_txt})."
+            )
+
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE vinculo_tecnico
+                SET data_inicio = :ini, data_desvinculacao = :fim, atualizado_em = NOW()
+                WHERE id = :id
+            """),
+            {"id": vinculo_id, "ini": data_inicio, "fim": data_desvinculacao},
+        )
+        for v in seguintes:
+            conn.execute(
+                text("UPDATE vinculo_tecnico SET data_inicio = :ini, atualizado_em = NOW() WHERE id = :id"),
+                {"id": v["id"], "ini": data_desvinculacao},
+            )
+    return {"vinculos_seguintes_ajustados": len(seguintes)}
