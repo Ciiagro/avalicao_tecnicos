@@ -665,43 +665,74 @@ def recusar_solicitacao(solicitacao_id: int, coordenador: str) -> None:
 
 def tecnicos_do_supervisor_no_mes(supervisor: str, mes_ref: date):
     """
-    Técnicos que este supervisor deve avaliar, para qualquer mês escolhido —
-    fonte ÚNICA: quem está ATIVO na equipe dele HOJE (vinculo_tecnico com
-    data_desvinculacao nula).
+    Técnicos que este supervisor deve avaliar no mês escolhido (mes_ref).
 
-    NÃO usa mais nem visitas (acompanhamento_mensal_visitas) nem vínculo
-    histórico daquele mês específico: um técnico já desvinculado (ex:
-    Felipe, saiu em 30/07) não deve mais aparecer pendente de avaliação em
-    nenhum mês, mesmo que tenha sido da equipe dela naquele mês — só quem
-    está na equipe atual entra na lista, em qualquer mês que o supervisor
-    escolher avaliar.
+    Regra: avalia o mês M o supervisor que estava com o técnico no ÚLTIMO
+    DIA de M. Na prática, entram dois grupos:
 
-    Dedup por NOME NORMALIZADO (DISTINCT ON, não "DISTINCT tecnico" puro):
-    se o mesmo técnico tiver duas linhas de vínculo com grafias diferentes
-    (acento, espaço duplicado etc — foi o que aconteceu com "CLEYTON TORRES
-    DA SILVA" aparecendo 2x na tela do Gerlan), "DISTINCT tecnico" cru NÃO
-    dedupe, porque compara string exata. Aqui garante 1 linha por pessoa
-    independente de quantas grafias existam na base.
+      1) Vínculo ATIVO hoje com este supervisor cujo início efetivo é
+         anterior ou igual ao fim de M. Técnico transferido em outubro NÃO
+         aparece para o novo supervisor ao avaliar setembro.
+         "Início efetivo" = data em que o vínculo anterior (de outro
+         supervisor, motivo "Mudança de supervisor...") foi encerrado, ou
+         data_inicio se não houve transferência. Isso é necessário porque o
+         auto-vínculo grava data_inicio = primeira visita do técnico, que
+         não é a data da transferência.
 
-    mes_ref é mantido como parâmetro só por compatibilidade de assinatura
-    com quem chama esta função — não é mais usado para filtrar.
+      2) Vínculo ENCERRADO por transferência ("Mudança de supervisor...")
+         que cobria o fim de M — o supervisor antigo continua responsável
+         por avaliar o mês em que o técnico ainda era dele. Quem saiu por
+         outro motivo (desligamento, inatividade...) continua sem aparecer
+         (caso Felipe).
+
+    Dedup por NOME NORMALIZADO (acento/espaço duplicado), 1 linha por pessoa.
     """
     engine = get_engine()
     with engine.connect() as conn:
-        rows_vinculo_ativo_hoje = conn.execute(
+        rows = conn.execute(
             text("""
-                SELECT DISTINCT ON (lower(trim(regexp_replace(tecnico, '\\s+', ' ', 'g'))))
-                    tecnico
-                FROM vinculo_tecnico
-                WHERE supervisor = :supervisor
-                  AND data_desvinculacao IS NULL
-                ORDER BY lower(trim(regexp_replace(tecnico, '\\s+', ' ', 'g'))), tecnico
+                WITH ref AS (
+                    SELECT (date_trunc('month', CAST(:mes_ref AS date))
+                            + interval '1 month - 1 day')::date AS fim_mes
+                ),
+                base AS (
+                    SELECT
+                        v.tecnico,
+                        v.supervisor,
+                        v.data_desvinculacao,
+                        v.motivo_desvinculacao,
+                        GREATEST(
+                            v.data_inicio,
+                            COALESCE((
+                                SELECT MAX(p.data_desvinculacao)
+                                FROM vinculo_tecnico p
+                                WHERE p.id <> v.id
+                                  AND p.supervisor <> v.supervisor
+                                  AND p.data_desvinculacao IS NOT NULL
+                                  AND p.motivo_desvinculacao LIKE 'Mudança de supervisor%'
+                                  AND lower(trim(regexp_replace(p.tecnico, '\\s+', ' ', 'g')))
+                                    = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+                                  AND p.data_desvinculacao <= COALESCE(v.data_desvinculacao, CURRENT_DATE)
+                            ), v.data_inicio)
+                        ) AS inicio_efetivo
+                    FROM vinculo_tecnico v
+                    WHERE v.supervisor = :supervisor
+                )
+                SELECT DISTINCT ON (lower(trim(regexp_replace(b.tecnico, '\\s+', ' ', 'g'))))
+                    b.tecnico
+                FROM base b, ref
+                WHERE b.inicio_efetivo <= ref.fim_mes
+                  AND (
+                        b.data_desvinculacao IS NULL
+                        OR (b.motivo_desvinculacao LIKE 'Mudança de supervisor%'
+                            AND b.data_desvinculacao >= ref.fim_mes)
+                      )
+                ORDER BY lower(trim(regexp_replace(b.tecnico, '\\s+', ' ', 'g'))), b.tecnico
             """),
-            {"supervisor": supervisor},
+            {"supervisor": supervisor, "mes_ref": mes_ref},
         ).fetchall()
-        tecnicos_ativos_hoje = {r.tecnico for r in rows_vinculo_ativo_hoje}
 
-    return sorted(tecnicos_ativos_hoje)
+    return sorted({r.tecnico for r in rows})
 
 
 def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):

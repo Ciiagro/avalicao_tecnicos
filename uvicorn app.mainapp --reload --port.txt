@@ -23,3 +23,15 @@ set senha_hash = '$2b$12$BIiAxKifUleB48.TpE/sjOe6VkazVyPu7RnK.4LibKgloAwmKmM0q',
     precisa_trocar_senha = true,
     atualizado_em = now()
 where login = 'antonio.pinheiro';
+
+
+UPDATE public.usuarios_supervisores
+SET senha_hash = '$2b$12$FQeN9mlhITYQxAFg9GKt4.L74OGCSvHfrUPpQLLyX85XY62DauEYa',
+    precisa_trocar_senha = true,
+    atualizado_em = now()
+WHERE login = 'yarissa.feitosa';
+esse senha_hash é para a senha incial: 123456
+
+
+usuario: claudio.coutinho
+senha: avaliaTEC15@
