@@ -682,8 +682,13 @@ def tecnicos_do_supervisor_no_mes(supervisor: str, mes_ref: date):
       2) Vínculo ENCERRADO por transferência ("Mudança de supervisor...")
          que cobria o fim de M — o supervisor antigo continua responsável
          por avaliar o mês em que o técnico ainda era dele. Quem saiu por
-         outro motivo (desligamento, inatividade...) continua sem aparecer
+         outro motivo (inatividade automática...) continua sem aparecer
          (caso Felipe).
+
+      3) Vínculo encerrado porque o TÉCNICO FOI DESATIVADO ("Técnico
+         desativado...") DEPOIS do fim de M — ele ainda era do supervisor
+         em M, então tem que ser avaliado naquele mês (caso Pedro: vinculado
+         ao Gerlan até 05/10, deve aparecer em setembro).
 
     Dedup por NOME NORMALIZADO (acento/espaço duplicado), 1 linha por pessoa.
     """
@@ -724,7 +729,8 @@ def tecnicos_do_supervisor_no_mes(supervisor: str, mes_ref: date):
                 WHERE b.inicio_efetivo <= ref.fim_mes
                   AND (
                         b.data_desvinculacao IS NULL
-                        OR (b.motivo_desvinculacao LIKE 'Mudança de supervisor%'
+                        OR ((b.motivo_desvinculacao LIKE 'Mudança de supervisor%'
+                             OR b.motivo_desvinculacao LIKE 'Técnico desativado%')
                             AND b.data_desvinculacao >= ref.fim_mes)
                       )
                 ORDER BY lower(trim(regexp_replace(b.tecnico, '\\s+', ' ', 'g'))), b.tecnico
@@ -733,6 +739,25 @@ def tecnicos_do_supervisor_no_mes(supervisor: str, mes_ref: date):
         ).fetchall()
 
     return sorted({r.tecnico for r in rows})
+
+
+def mapa_tecnico_supervisor_no_mes(mes_ref: date) -> dict[str, str]:
+    """
+    {nome normalizado do técnico: supervisor} no mês escolhido, usando a MESMA
+    regra da avaliação mensal (tecnicos_do_supervisor_no_mes). Usado pelo
+    ranking para agrupar os técnicos igual à tela de avaliação.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        supervisores = [r.supervisor for r in conn.execute(
+            text("SELECT DISTINCT supervisor FROM vinculo_tecnico WHERE supervisor IS NOT NULL;")
+        ).fetchall()]
+
+    mapa: dict[str, str] = {}
+    for sup in sorted(supervisores):
+        for tec in tecnicos_do_supervisor_no_mes(sup, mes_ref):
+            mapa.setdefault(normalizar(tec), sup)
+    return mapa
 
 
 def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):
@@ -747,6 +772,8 @@ def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):
          que hoje não esteja mais na equipe dele (preserva o histórico —
          uma avaliação já feita nunca desaparece da tela do mês em que foi
          lançada, mesmo que o técnico saia da equipe depois)
+      3) quem o supervisor marcou como "não avaliar" nesse mês (com motivo) —
+         também é registro do mês e não some quando o vínculo é encerrado
 
     Cada técnico também carrega "nao_avaliar" (bool) e "observacao_nao_avaliar"
     — marcação feita pelo supervisor quando decide que aquele técnico não
@@ -770,7 +797,7 @@ def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):
 
     nao_avaliar_por_tecnico = obter_nao_avaliar_do_mes(supervisor, mes_ref)
 
-    tecnicos = sorted(tecnicos_do_mes | set(avaliacao_id_por_tecnico.keys()))
+    tecnicos = sorted(tecnicos_do_mes | set(avaliacao_id_por_tecnico.keys()) | set(nao_avaliar_por_tecnico.keys()))
 
     return [
         {
@@ -1288,7 +1315,7 @@ def tecnicos_com_avaliacao_para_mes(supervisor: str, mes_ref: date):
 
     nao_avaliar_por_tecnico = obter_nao_avaliar_do_mes(supervisor, mes_ref)
 
-    tecnicos = sorted(tecnicos_do_mes | set(avaliacoes_por_tecnico.keys()))
+    tecnicos = sorted(tecnicos_do_mes | set(avaliacoes_por_tecnico.keys()) | set(nao_avaliar_por_tecnico.keys()))
 
     resultado = []
     melhor_media = None

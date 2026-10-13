@@ -1672,13 +1672,26 @@ def ranking_objetivo_coordenador(request: Request, mes: str | None = Query(defau
 
     ranking_objetivo_rows = repositorio.ranking_objetivo_tecnicos(obj_dt_inicio, obj_dt_fim)
 
-    # Agrupa por supervisor, já ordenado pela posição (pos) dentro do grupo.
+    # Agrupa pelo MESMO critério da avaliação mensal (vínculo do técnico no
+    # mês escolhido), e não pelo "último supervisor das visitas". Quem não
+    # tem vínculo no mês cai em "— sem vínculo neste mês —".
+    mapa_supervisor = repositorio.mapa_tecnico_supervisor_no_mes(mes_ref)
     ranking_objetivo_por_supervisor = {}
     for r in ranking_objetivo_rows:
-        chave = r["ultimo_supervisor"] or "— sem supervisor —"
+        chave = mapa_supervisor.get(repositorio.normalizar(r["tecnico_responsavel"])) or "— sem vínculo neste mês —"
+        r["ultimo_supervisor"] = chave
         ranking_objetivo_por_supervisor.setdefault(chave, []).append(r)
+
+    # A posição (pos) era calculada no SQL pelo supervisor das visitas;
+    # recalcula aqui dentro do novo grupo (ranking denso, maior nota primeiro).
     for lista in ranking_objetivo_por_supervisor.values():
-        lista.sort(key=lambda r: r["pos"])
+        lista.sort(key=lambda r: (-(r["nota_objetiva"] or 0), r["tecnico_responsavel"]))
+        pos, anterior = 0, None
+        for r in lista:
+            if r["nota_objetiva"] != anterior:
+                pos += 1
+                anterior = r["nota_objetiva"]
+            r["pos"] = pos
     ranking_objetivo_por_supervisor = dict(sorted(ranking_objetivo_por_supervisor.items()))
 
     return templates.TemplateResponse(
