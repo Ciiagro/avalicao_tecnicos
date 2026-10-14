@@ -128,11 +128,19 @@ def trocar_senha(request: Request, nova_senha: str = Form(...), confirmar_senha:
     return RedirectResponse("/", status_code=303)
 
 
-def lista_meses_para_template():
-    return [
+def lista_meses_para_template(incluir_corrente: bool = False):
+    meses = [
         {"valor": m.strftime("%Y-%m"), "label": m.strftime("%m/%Y")}
         for m in repositorio.meses_disponiveis_para_avaliacao()
     ]
+    if incluir_corrente:
+        # Só para o coordenador ANALISAR o mês em andamento (leitura): ainda
+        # não dá para avaliar, mas dá para ver a lista e conferir vínculos.
+        hoje = date.today().replace(day=1)
+        valor = hoje.strftime("%Y-%m")
+        if all(m["valor"] != valor for m in meses):
+            meses.insert(0, {"valor": valor, "label": hoje.strftime("%m/%Y") + " (em andamento — só análise)"})
+    return meses
 
 
 def _nova_planilha(cabecalho: list[str]):
@@ -483,7 +491,7 @@ def painel_coordenador(
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
-    meses_disponiveis = lista_meses_para_template()
+    meses_disponiveis = lista_meses_para_template(incluir_corrente=True)
 
     # Passo 1 — ainda não escolheu o mês: mostra a tela de seleção.
     if not mes:
@@ -493,12 +501,15 @@ def painel_coordenador(
                 "request": request,
                 "supervisor": request.session.get("supervisor"),
                 "meses_disponiveis": meses_disponiveis,
+                # o padrão continua sendo o mês fechado (anterior); o mês em
+                # andamento só fica liberado no seletor, para análise.
+                "mes_padrao": repositorio.meses_disponiveis_para_avaliacao()[0].strftime("%Y-%m"),
                 "destino": "/coordenador/avaliacao",
             },
         )
 
     # Passo 2 — mês escolhido: mostra os supervisores com o status daquele mês.
-    mes_ref = resolver_mes_escolhido(mes)
+    mes_ref = resolver_mes_escolhido(mes, permitir_corrente=True)
     resumo = repositorio.resumo_supervisores_para_mes(mes_ref)
     visao = repositorio.visao_geral_mes(mes_ref)
 
@@ -561,7 +572,7 @@ def exportar_coordenador(
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
-    mes_ref = resolver_mes_escolhido(mes)
+    mes_ref = resolver_mes_escolhido(mes, permitir_corrente=True)
     linhas = repositorio.dados_para_exportar(mes_ref, supervisor=supervisor)
 
     if supervisor:
@@ -583,7 +594,7 @@ def exportar_coordenador_completo(
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
-    mes_ref = resolver_mes_escolhido(mes)
+    mes_ref = resolver_mes_escolhido(mes, permitir_corrente=True)
     linhas = repositorio.avaliacoes_completas_mes(mes_ref, supervisor=supervisor)
 
     if supervisor:
@@ -1638,7 +1649,7 @@ def ranking_coordenador(request: Request, mes: str | None = Query(default=None))
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
-    mes_ref = resolver_mes_escolhido(mes)
+    mes_ref = resolver_mes_escolhido(mes, permitir_corrente=True)
     ranking_supervisores = repositorio.ranking_supervisores(mes_ref)
     ranking_tecnicos = repositorio.ranking_geral_tecnicos(mes_ref)
 
@@ -1661,7 +1672,7 @@ def ranking_objetivo_coordenador(request: Request, mes: str | None = Query(defau
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
-    mes_ref = resolver_mes_escolhido(mes)
+    mes_ref = resolver_mes_escolhido(mes, permitir_corrente=True)
 
     # Ranking objetivo (visitas) — MESMO mês escolhido pra avaliação subjetiva
     # (ex: escolheu junho -> só considera visitas de 01/06 a 30/06).
@@ -1715,7 +1726,7 @@ def painel_coordenador_supervisor(request: Request, supervisor: str, mes: str | 
     if request.session.get("tipo") != "coordenador":
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
-    mes_ref = resolver_mes_escolhido(mes)
+    mes_ref = resolver_mes_escolhido(mes, permitir_corrente=True)
     tecnicos = repositorio.tecnicos_com_avaliacao_para_mes(supervisor, mes_ref)
 
     # Só faz sentido mostrar o aviso de "prazo encerrado" (e pedir autorização)
@@ -1804,7 +1815,7 @@ def autorizar_avaliacao_atrasada(request: Request, supervisor: str, mes: str = F
 # ══════════════════════════════════════════════════════════
 # FORMULÁRIO DE AVALIAÇÃO
 # ══════════════════════════════════════════════════════════
-def resolver_mes_escolhido(mes: str | None) -> date:
+def resolver_mes_escolhido(mes: str | None, permitir_corrente: bool = False) -> date:
     """
     Converte o parâmetro `mes` (ex: "2026-05" ou "2026-05-01") vindo da URL/form
     em uma data válida, MAS só aceita meses da lista de meses permitidos
@@ -1812,15 +1823,22 @@ def resolver_mes_escolhido(mes: str | None) -> date:
     arbitrário digitado na URL. Se não vier nada, ou vier algo inválido,
     cai no padrão (mês anterior ao atual).
     """
-    permitidos = repositorio.meses_disponiveis_para_avaliacao()
+    permitidos = list(repositorio.meses_disponiveis_para_avaliacao())
+    if permitir_corrente:
+        # Só telas de LEITURA do coordenador: deixa abrir o mês em andamento
+        # (ex.: outubro) para análise. A avaliação em si continua só dos meses fechados.
+        corrente = date.today().replace(day=1)
+        if corrente not in permitidos:
+            permitidos.append(corrente)
+    padrao = repositorio.meses_disponiveis_para_avaliacao()[0]
     if not mes:
-        return permitidos[0]
+        return padrao
     try:
         partes = mes.split("-")
         candidato = date(int(partes[0]), int(partes[1]), 1)
     except (ValueError, IndexError):
-        return permitidos[0]
-    return candidato if candidato in permitidos else permitidos[0]
+        return padrao
+    return candidato if candidato in permitidos else padrao
 
 
 @app.post("/solicitar-prazo/{tecnico}")

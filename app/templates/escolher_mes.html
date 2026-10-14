@@ -35,7 +35,7 @@
                     type="month"
                     id="mes"
                     name="mes"
-                    value="{{ meses_disponiveis[0].valor }}"
+                    value="{{ mes_padrao or meses_disponiveis[0].valor }}"
                     min="{{ meses_disponiveis[-1].valor }}"
                     max="{{ meses_disponiveis[0].valor }}"
                     required
