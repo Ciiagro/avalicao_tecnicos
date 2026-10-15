@@ -1818,7 +1818,7 @@ def configurar_prazo(request: Request, dia_limite: int = Form(...), mes: str | N
     dia_limite = max(1, min(31, dia_limite))  # protege contra valor absurdo vindo do form
     repositorio.definir_dia_limite(dia_limite, coordenador)
 
-    destino = "/coordenador" + (f"?mes={mes}" if mes else "")
+    destino = "/coordenador/avaliacao" + (f"?mes={mes}" if mes else "")
     return RedirectResponse(destino, status_code=303)
 
 

@@ -1031,13 +1031,11 @@ def resumo_supervisores_para_mes(mes_ref: date):
     engine = get_engine()
 
     with engine.connect() as conn:
-        tecnicos_por_supervisor = conn.execute(
-            text("""
-                SELECT DISTINCT supervisor, tecnico
-                FROM vinculo_tecnico
-                WHERE data_desvinculacao IS NULL;
-            """),
-        ).fetchall()
+        supervisores_com_vinculo = [
+            r.supervisor for r in conn.execute(
+                text("SELECT DISTINCT supervisor FROM vinculo_tecnico WHERE supervisor IS NOT NULL;")
+            ).fetchall()
+        ]
 
         avaliados = conn.execute(
             text("""
@@ -1069,10 +1067,18 @@ def resumo_supervisores_para_mes(mes_ref: date):
     # tem avaliação lançada nesse mês mas cujo vínculo não bateu certinho
     # dentro do período (evita que o técnico "suma" da contagem só por
     # isso, mesmo cuidado já tomado em tecnicos_com_status_para_mes).
-    pares_vinculo = {(r.supervisor, r.tecnico) for r in tecnicos_por_supervisor}
+    # A equipe de cada supervisor É A DO MÊS ESCOLHIDO (mesma regra da tela de
+    # técnicos do supervisor): quem estava com ele no último dia do mês.
+    # Quem chegou depois não entra; quem saiu depois continua entrando.
+    pares_vinculo = set()
+    for sup in supervisores_com_vinculo:
+        for t in tecnicos_do_supervisor_no_mes(sup, mes_ref):
+            pares_vinculo.add((sup, t))
     pares_avaliados = {(a.supervisor, a.tecnico) for a in avaliados}
 
-    for supervisor, tecnico in (pares_vinculo | pares_avaliados):
+    # Avaliações já lançadas e marcações "não avaliar" do mês nunca somem
+    # da contagem (preserva o histórico), mesmo sem vínculo hoje.
+    for supervisor, tecnico in (pares_vinculo | pares_avaliados | pares_nao_avaliar):
         item = resumo.setdefault(supervisor, {"supervisor": supervisor, "total": 0, "avaliados": 0, "nao_avaliar": 0})
         item["total"] += 1
         if (supervisor, tecnico) in pares_avaliados:
