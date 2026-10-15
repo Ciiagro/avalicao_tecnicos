@@ -4,6 +4,48 @@
     <meta charset="UTF-8">
     <title>Cadastros — Coordenador</title>
     <link rel="stylesheet" href="/static/style.css?v=5">
+    <style>
+        .tabela-auditoria-wrap { background:#fff; border:1px solid var(--borda); border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,.05); overflow:hidden; }
+        .tabela-auditoria { width:100%; border-collapse:collapse; font-size:.82rem; }
+        .tabela-auditoria th { text-align:left; padding:12px; background:var(--verde-700,#1f6b45); color:#fff; font-weight:700; font-size:.78rem; letter-spacing:.02em; border:0; }
+        .tabela-auditoria > tbody > tr.linha-principal > td { padding:8px 12px; border-bottom:1px solid #eef0ea; vertical-align:middle; }
+        .tabela-auditoria tr.linha-principal:hover > td { background:#fafbf8; }
+        .pessoa-l { display:flex; align-items:center; gap:12px; font-weight:600; }
+        .avatar-l { width:28px; height:28px; flex:0 0 28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:.68rem; font-weight:700; }
+        .pill-qtd { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.74rem; background:#e7f3ec; color:#1f6b45; white-space:nowrap; }
+        .pill-qtd.zero { background:#eeeae4; color:#6b665e; }
+        .tabela-auditoria .status { font-size:.74rem; padding:3px 10px; }
+        .barra-sup { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+        .campo-busca { position:relative; flex:0 0 320px; }
+        .campo-busca .ic { position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--verde-700,#1f6b45); }
+        .campo-busca input { width:100%; margin:0; padding:11px 14px 11px 40px; background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+        .pager { display:flex; align-items:center; gap:6px; margin:0 0 12px; flex-wrap:wrap; font-size:.85rem; color:var(--texto-600); }
+        .pager button { width:auto; margin:0; min-width:34px; padding:6px 10px; border:1px solid var(--borda); background:#fff; border-radius:8px; font:inherit; cursor:pointer; box-shadow:none; color:inherit; }
+        .pager button.atual { background:var(--verde-700,#1f6b45); border-color:var(--verde-700,#1f6b45); color:#fff; }
+        .pager button:disabled { opacity:.4; cursor:default; }
+        .pager select { width:auto; margin:0 0 0 auto; padding:5px 8px; border:1px solid var(--borda); border-radius:8px; background:#fff; font:inherit; }
+
+        /* ---- Supervisores em cartões (igual à tela de Técnicos) ---- */
+        .tabela-auditoria-wrap { background:transparent; border:0; box-shadow:none; border-radius:0; overflow:visible; }
+        .tabela-auditoria, .tabela-auditoria > tbody { display:block; width:100%; }
+        .tabela-auditoria > thead { display:none; }
+        .tabela-auditoria tr.linha-principal { --c:#2e8b57; --cb:#d9f0e2; --cf:#1f6b45; display:flex; align-items:center; gap:14px; background:#fffefb; border-left:5px solid var(--c); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:10px; padding:8px 18px 8px 12px; cursor:pointer; }
+        .tabela-auditoria tr.linha-principal.c1, .tabela-auditoria tr.linha-detalhe.c1 { --c:#2563eb; --cb:#dbe8fe; --cf:#1e4fb8; }
+        .tabela-auditoria tr.linha-principal.c2, .tabela-auditoria tr.linha-detalhe.c2 { --c:#9333ea; --cb:#eddcfb; --cf:#7424bd; }
+        .tabela-auditoria tr.linha-principal.c3, .tabela-auditoria tr.linha-detalhe.c3 { --c:#f97316; --cb:#fde6d3; --cf:#c2570c; }
+        .tabela-auditoria tr.linha-principal.c4, .tabela-auditoria tr.linha-detalhe.c4 { --c:#14b8a6; --cb:#d3f3ee; --cf:#0d7f73; }
+        .tabela-auditoria tr.linha-principal.c5, .tabela-auditoria tr.linha-detalhe.c5 { --c:#ec4899; --cb:#fbdcec; --cf:#b52a74; }
+        .tabela-auditoria tr.linha-principal:hover > td { background:transparent; }
+        .tabela-auditoria tr.linha-principal > td { display:block; padding:0; border:0; width:auto; }
+        .tabela-auditoria tr.linha-principal > td.col-seta { flex:0 0 auto; font-size:1.1rem; color:var(--texto-600); }
+        .tabela-auditoria tr.linha-principal > td.col-tecnico { flex:1; min-width:0; font-size:.95rem; font-weight:700; }
+        .tabela-auditoria tr.linha-principal .avatar-l { width:36px; height:36px; flex:0 0 36px; background:var(--c) !important; color:#fff !important; font-size:.78rem; }
+        .tabela-auditoria tr.linha-principal .pill-qtd { background:var(--cb); color:var(--cf); font-size:.8rem; padding:5px 14px; }
+        .tabela-auditoria tr.linha-principal .pill-qtd.zero { background:#eeeae4; color:#6b665e; }
+        .tabela-auditoria tr.linha-detalhe { --c:#2e8b57; display:none; background:#fff; border-left:5px solid var(--c); border-radius:0 0 12px 12px; box-shadow:0 2px 8px rgba(0,0,0,.05); margin:-12px 0 10px; padding:16px 18px 6px; }
+        .tabela-auditoria tr.linha-detalhe > td { display:block; padding:0; border:0; }
+        .tabela-auditoria tr.linha-detalhe > td:first-child { display:none; }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -51,6 +93,14 @@
             </form>
         </div>
 
+        <div class="barra-sup">
+            <div class="campo-busca">
+                <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+                <input type="text" id="filtro-sup" placeholder="Buscar supervisor…">
+            </div>
+        </div>
+        <div class="pager" id="pager"></div>
+
         <div class="tabela-auditoria-wrap">
             <table class="tabela-auditoria" style="table-layout: fixed;">
                 <thead>
@@ -66,11 +116,11 @@
                     {% for s in supervisores %}
                     <tr class="linha-principal" onclick="toggleDetalheSupervisor(this)">
                         <td class="col-seta">▸</td>
-                        <td class="col-tecnico">{{ s.nome }}</td>
+                        <td class="col-tecnico" data-nome="{{ s.nome | lower }}"><div class="pessoa-l"><span class="avatar-l" data-nome="{{ s.nome }}"></span><span>{{ s.nome | replace("JOS&#65533;", "JOSÉ") | replace("J&#65533;NIOR", "JÚNIOR") }}</span></div></td>
                         <td><span class="status {{ 'avaliado' if s.ativo else 'pendente' }}">{{ 'Ativo' if s.ativo else 'Inativo' }}</span></td>
                         <td style="color:var(--texto-600); font-size:0.85rem;">
                             {% set qtd = tecnicos_vinculados_por_supervisor.get(s.id, 0) %}
-                            {{ qtd }} técnico{{ 's' if qtd != 1 else '' }}
+                            <span class="pill-qtd {{ 'zero' if qtd == 0 else '' }}">{{ qtd }} técnico{{ 's' if qtd != 1 else '' }}</span>
                         </td>
                         <td>
                             {% set qtd_vinculados = tecnicos_vinculados_por_supervisor.get(s.id, 0) %}
@@ -486,7 +536,7 @@
             const detalhe = linha.nextElementSibling;
             const seta = linha.querySelector('.col-seta');
             const aberto = detalhe.style.display !== 'none';
-            detalhe.style.display = aberto ? 'none' : 'table-row';
+            detalhe.style.display = aberto ? 'none' : 'block';
             seta.textContent = aberto ? '▸' : '▾';
         }
 
@@ -497,6 +547,78 @@
                 document.getElementById('nome-supervisor').focus();
             }
         }
+    </script>
+
+    <script>
+        (function () {
+            const CORES = [['#d6f1e0','#1f6b45'],['#d9e8fb','#255a9b'],['#ece4fb','#6a3fb0'],['#fde8dc','#a4501f'],['#fbdde8','#a42a5a'],['#fff3c4','#8a6d00']];
+            document.querySelectorAll('.avatar-l').forEach(function (a) {
+                const nome = a.dataset.nome || '';
+                const p = nome.trim().split(/\s+/);
+                a.textContent = ((p[0] || '')[0] || '') + ((p.length > 1 ? p[1] : '')[0] || '');
+                let h = 0; for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
+                const c = CORES[h % CORES.length];
+                a.style.background = c[0]; a.style.color = c[1];
+            });
+
+            document.querySelectorAll('.tabela-auditoria tr.linha-principal').forEach(function (l, i) {
+                l.classList.add('c' + (i % 6));
+                l.nextElementSibling.classList.add('c' + (i % 6));
+            });
+
+            const busca = document.getElementById('filtro-sup');
+            const pager = document.getElementById('pager');
+            const linhas = Array.from(document.querySelectorAll('.tabela-auditoria tr.linha-principal'));
+            let pagina = 1, porPag = 15;
+
+            function aplicar() {
+                const q = busca.value.trim().toLowerCase();
+                const casam = linhas.filter(function (l) { return !q || l.querySelector('.col-tecnico').dataset.nome.includes(q); });
+                const paginas = Math.max(1, Math.ceil(casam.length / porPag));
+                if (pagina > paginas) pagina = paginas;
+                const ini = (pagina - 1) * porPag, fim = ini + porPag;
+                const mostrar = new Set(casam.slice(ini, fim));
+                linhas.forEach(function (l) {
+                    const m = mostrar.has(l);
+                    l.style.display = m ? '' : 'none';
+                    if (!m) {
+                        l.nextElementSibling.style.display = 'none';
+                        l.querySelector('.col-seta').textContent = '▸';
+                    }
+                });
+                desenhar(casam.length, paginas, ini, Math.min(fim, casam.length));
+            }
+
+            function desenhar(total, paginas, ini, fim) {
+                pager.innerHTML = '';
+                function btn(txt, pg, extra) {
+                    const b = document.createElement('button');
+                    b.type = 'button'; b.textContent = txt;
+                    if (extra === 'atual') b.className = 'atual';
+                    if (extra === 'off') b.disabled = true;
+                    else b.addEventListener('click', function () { pagina = pg; aplicar(); });
+                    pager.appendChild(b);
+                }
+                const info = document.createElement('span');
+                info.textContent = total ? ('Mostrando ' + (ini + 1) + '–' + fim + ' de ' + total + '  ') : 'Nenhum resultado';
+                pager.appendChild(info);
+                if (paginas > 1) {
+                    btn('‹', pagina - 1, pagina === 1 ? 'off' : '');
+                    for (let i = 1; i <= paginas; i++) {
+                        if (i === 1 || i === paginas || Math.abs(i - pagina) <= 1) btn(String(i), i, i === pagina ? 'atual' : '');
+                        else if (Math.abs(i - pagina) === 2) { const r = document.createElement('span'); r.textContent = '…'; pager.appendChild(r); }
+                    }
+                    btn('›', pagina + 1, pagina === paginas ? 'off' : '');
+                }
+                const sel = document.createElement('select');
+                [10, 15, 25, 50].forEach(function (n) { const o = document.createElement('option'); o.value = n; o.textContent = n + ' por página'; if (n === porPag) o.selected = true; sel.appendChild(o); });
+                sel.addEventListener('change', function () { porPag = parseInt(sel.value, 10); pagina = 1; aplicar(); });
+                pager.appendChild(sel);
+            }
+
+            busca.addEventListener('input', function () { pagina = 1; aplicar(); });
+            aplicar();
+        })();
     </script>
 </body>
 </html>

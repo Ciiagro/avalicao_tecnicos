@@ -9,10 +9,33 @@
             font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em;
             text-transform: uppercase; color: var(--dourado-600); font-weight: 500; margin: 0 0 6px;
         }
+
+        .home-novo { position:relative; }
+        .home-novo .folhas { position:absolute; top:-10px; right:-10px; width:260px; height:150px; pointer-events:none; opacity:.9; }
+        .home-novo .eyebrow { display:flex; align-items:center; gap:12px; color:#d9671f; font-weight:600; font-size:.74rem; letter-spacing:.16em; }
+        .home-novo .eyebrow::before { content:""; width:34px; height:3px; background:#e87a2e; border-radius:2px; }
+        .home-novo h1 { font-size:2.5rem; margin:4px 0 6px; }
+        .home-novo .subtitulo { font-size:1.05rem; margin-bottom:34px; }
+        .acessos-titulo { display:flex; align-items:center; gap:14px; font-size:1.5rem; margin:0 0 18px; color:var(--verde-900); border:0; padding:0; }
+        .acessos-titulo::before { content:""; width:4px; height:28px; background:#e0a243; border-radius:2px; }
+        .grade-home { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:20px; }
+        .home-novo .cartao-mes { position:relative; display:flex; align-items:flex-start; gap:18px; padding:26px 52px 26px 24px; background:#fffefb; border:1px solid var(--borda); border-radius:14px; box-shadow:0 2px 8px rgba(18,48,36,.06); text-decoration:none; min-height:150px; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+        .home-novo .cartao-mes:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(18,48,36,.12); border-color:#bcd2c4; }
+        .home-novo .cartao-mes::after { content:"›"; position:absolute; right:22px; top:50%; transform:translateY(-50%); color:#e87a2e; font-size:2rem; line-height:1; font-weight:300; }
+        .home-novo .cartao-mes-icone { flex:0 0 68px; width:68px; height:68px; border-radius:50%; background:#e4ece4; display:flex; align-items:center; justify-content:center; }
+        .home-novo .cartao-mes-icone svg { width:30px; height:30px; stroke:var(--verde-900,#123024); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+        .home-novo .cartao-mes-label { display:block; font-family:'Zilla Slab',serif; font-size:1.2rem; font-weight:700; color:var(--verde-900); margin-bottom:6px; }
+        .home-novo .cartao-mes-desc { margin:0; font-size:.92rem; line-height:1.5; color:var(--texto-600); }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container home-novo">
+        <svg class="folhas" viewBox="0 0 260 150" aria-hidden="true">
+            <ellipse cx="190" cy="20" rx="95" ry="55" fill="#e3ece0"/>
+            <path d="M130 40 C170 30 215 55 225 100 C180 110 140 85 130 40Z" fill="#5f8f68"/>
+            <path d="M225 0 C255 5 260 40 255 70 C235 60 222 30 225 0Z" fill="#4f7f5a"/>
+            <path d="M110 55 C130 100 190 125 260 118" fill="none" stroke="#e87a2e" stroke-width="1.6"/>
+        </svg>
         <img src="/static/logo_sistema.png" alt="Logo" class="logo-institucional">
         <div class="top-bar">
             <div>
@@ -24,7 +47,8 @@
 
         <p class="subtitulo">Escolha o que você quer ver ou fazer.</p>
 
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 24px;">
+        <h2 class="acessos-titulo">Acessos rápidos</h2>
+        <div class="grade-home">
             <a href="/coordenador/cadastros" class="cartao-mes">
                 <div class="cartao-mes-icone">
                     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>

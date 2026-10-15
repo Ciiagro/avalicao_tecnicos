@@ -4,6 +4,25 @@
     <meta charset="UTF-8">
     <title>{{ tecnico }}</title>
     <link rel="stylesheet" href="/static/style.css?v=5">
+    <style>
+        .card-sec { background:#fffefb; border:1px solid var(--borda); border-radius:12px; padding:6px 22px 20px; margin:18px 0; }
+        .card-sec h2 { margin-top:16px; }
+        .grade-campos { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:0 36px; margin:6px 0 16px; }
+        .campo { padding:12px 0 10px; border-bottom:1px solid #eee9dd; min-width:0; }
+        .campo .rotulo { display:block; font-size:.72rem; color:var(--texto-600); font-weight:500; margin-bottom:3px; }
+        .campo .valor { display:block; font-size:.92rem; font-weight:600; color:var(--verde-900); overflow-wrap:anywhere; }
+        .linha-botoes { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px; }
+        .botao .ico { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; margin-right:7px; }
+        .botao-perigo { background:#fff; }
+        .historico-lista { list-style:none; margin:10px 0 0; padding:0; }
+        .historico-lista li { display:flex; align-items:center; gap:0; flex-wrap:wrap; background:var(--areia-50); border:1px solid #eee9dd;
+                              border-radius:10px; padding:10px 14px; margin-bottom:8px; font-size:.9rem; }
+        .historico-lista .ico-relogio { width:22px; height:22px; fill:none; stroke:var(--verde-700); stroke-width:2; stroke-linecap:round; margin-right:12px; flex:none; }
+        .historico-lista .h-sup { font-weight:700; color:var(--verde-900); padding-right:16px; }
+        .historico-lista .h-per, .historico-lista .h-mot { color:var(--texto-900); padding:0 16px; border-left:1px solid #ddd7c8; }
+        .historico-lista .h-acao { margin-left:auto; padding-left:14px; }
+        @media (max-width:760px) { .grade-campos { grid-template-columns:1fr; } }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -78,66 +97,53 @@
         </div>
         {% endif %}
 
+        <div class="card-sec">
         <h2>Dados cadastrais</h2>
         {% if not eh_coordenador %}
         <p class="subtitulo">Dados cadastrais visíveis apenas para a coordenação.</p>
         {% elif tecnico_cadastro %}
-        <table class="tabela-dados">
-            <tr>
-                <td>RG</td>
-                <td>{{ tecnico_cadastro.rg or "—" }}</td>
-                <td>CPF</td>
-                <td>{{ tecnico_cadastro.cpf or "—" }}</td>
-                <td>Contato</td>
-                <td>{{ tecnico_cadastro.contato or "—" }}</td>
-            </tr>
-            <tr><td>E-mail</td><td colspan="5">{{ tecnico_cadastro.email or "—" }}</td></tr>
-            <tr>
-                <td>Endereço</td>
-                <td colspan="3">{{ tecnico_cadastro.endereco or "—" }}</td>
-                <td>Município</td>
-                <td>{{ tecnico_cadastro.municipio or "—" }}</td>
-            </tr>
-            <tr>
-                <td>Empresa</td>
-                <td colspan="3">{{ tecnico_cadastro.empresa or "—" }}</td>
-                <td>CNPJ da empresa</td>
-                <td>{{ tecnico_cadastro.cnpj_empresa or "—" }}</td>
-            </tr>
-            <tr>
-                <td>Capacitação metodológica</td>
-                <td>{{ tecnico_cadastro.mes_ano_capacitacao_metodologica.strftime("%m/%Y") if tecnico_cadastro.mes_ano_capacitacao_metodologica else "—" }}</td>
-                <td>Modalidade</td>
-                <td colspan="3">{{ tecnico_cadastro.modalidade_capacitacao_metodologica or "—" }}</td>
-            </tr>
-        </table>
-        <button type="button" class="botao" style="margin-bottom:18px;" onclick="document.getElementById('modal-editar-cadastro').showModal()">Editar cadastro</button>
+        <div class="grade-campos">
+            <div class="campo"><span class="rotulo">RG</span><span class="valor">{{ tecnico_cadastro.rg or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">CPF</span><span class="valor">{{ tecnico_cadastro.cpf or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">Contato</span><span class="valor">{{ tecnico_cadastro.contato or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">E-mail</span><span class="valor">{{ tecnico_cadastro.email or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">Endereço</span><span class="valor">{{ tecnico_cadastro.endereco or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">Município</span><span class="valor">{{ tecnico_cadastro.municipio or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">Empresa</span><span class="valor">{{ tecnico_cadastro.empresa or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">CNPJ da empresa</span><span class="valor">{{ tecnico_cadastro.cnpj_empresa or "—" }}</span></div>
+            <div class="campo"></div>
+            <div class="campo"><span class="rotulo">Capacitação metodológica</span><span class="valor">{{ tecnico_cadastro.mes_ano_capacitacao_metodologica.strftime("%m/%Y") if tecnico_cadastro.mes_ano_capacitacao_metodologica else "—" }}</span></div>
+            <div class="campo"><span class="rotulo">Modalidade</span><span class="valor">{{ tecnico_cadastro.modalidade_capacitacao_metodologica or "—" }}</span></div>
+        </div>
+        <button type="button" class="botao" onclick="document.getElementById('modal-editar-cadastro').showModal()"><svg class="ico" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Editar cadastro</button>
         {% else %}
         <p class="subtitulo">Este técnico ainda não tem registro na tabela de cadastro mestre.</p>
         {% endif %}
+        </div>
 
         {% if vinculo_ativo and (eh_meu or eh_coordenador) %}
         <!-- Vínculo ativo, é da MINHA equipe (ou eu sou coordenador): mostra os dados e as ações -->
+        <div class="card-sec">
         <h2>Vínculo atual</h2>
-        <table class="tabela-dados">
-            <tr><td>Projeto</td><td>{{ visita.projeto_consolidado or vinculo_ativo.projeto or "—" }}</td></tr>
-            <tr><td>Atividade</td><td>{{ visita.atividade or vinculo_ativo.atividade or "—" }}</td></tr>
-            <tr><td>Início do vínculo</td><td>{{ vinculo_ativo.data_inicio.strftime("%d/%m/%Y") }}</td></tr>
-            <tr><td>Fim previsto</td><td>{{ vinculo_ativo.data_fim_prevista.strftime("%d/%m/%Y") if vinculo_ativo.data_fim_prevista else "—" }}</td></tr>
-            <tr><td>Situação</td><td><span class="status avaliado">Ativo</span></td></tr>
-        </table>
-
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            {% if eh_meu %}
-            <a class="botao botao-dourado" href="/avaliar/{{ tecnico }}">Avaliar técnico</a>
-            {% endif %}
-            {% if eh_coordenador %}
-            <button type="button" class="botao" onclick="document.getElementById('modal-editar-vinculo').showModal()">Editar vínculo</button>
-            <button type="button" class="botao botao-perigo" onclick="document.getElementById('modal-mudar-supervisor').showModal()">Desvincular Técnico</button>
-            <button type="button" class="botao botao-perigo" onclick="document.getElementById('modal-desativar-tecnico').showModal()">Desativar Técnico</button>
-            {% endif %}
+        <div class="grade-campos">
+            <div class="campo"><span class="rotulo">Projeto</span><span class="valor">{{ visita.projeto_consolidado or vinculo_ativo.projeto or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">Atividade</span><span class="valor">{{ visita.atividade or vinculo_ativo.atividade or "—" }}</span></div>
+            <div class="campo"><span class="rotulo">Início do vínculo</span><span class="valor">{{ vinculo_ativo.data_inicio.strftime("%d/%m/%Y") }}</span></div>
+            <div class="campo"><span class="rotulo">Fim previsto</span><span class="valor">{{ vinculo_ativo.data_fim_prevista.strftime("%d/%m/%Y") if vinculo_ativo.data_fim_prevista else "—" }}</span></div>
+            <div class="campo"><span class="rotulo">Situação</span><span class="valor"><span class="status avaliado">Ativo</span></span></div>
         </div>
 
+        <div class="linha-botoes">
+            {% if eh_meu %}
+            <a class="botao botao-dourado" href="/avaliar/{{ tecnico }}"><svg class="ico" viewBox="0 0 24 24"><path d="m12 3 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9Z"/></svg>Avaliar técnico</a>
+            {% endif %}
+            {% if eh_coordenador %}
+            <button type="button" class="botao" onclick="document.getElementById('modal-editar-vinculo').showModal()"><svg class="ico" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Editar vínculo</button>
+            <button type="button" class="botao botao-perigo" onclick="document.getElementById('modal-mudar-supervisor').showModal()"><svg class="ico" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>Desvincular Técnico</button>
+            <button type="button" class="botao botao-perigo" onclick="document.getElementById('modal-desativar-tecnico').showModal()"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>Desativar Técnico</button>
+            {% endif %}
+        </div>
+        </div>
 
         {% elif vinculo_ativo and not eh_meu and not eh_coordenador %}
         <!-- Vínculo ativo, mas com OUTRO supervisor: só leitura, sem ações -->
@@ -204,24 +210,29 @@
         <div class="aviso" style="border-left:4px solid #b5482a;">{{ erro_historico }}</div>
         {% endif %}
         {% if historico %}
-        <h2 style="margin-top: 28px;">Histórico de vínculos anteriores</h2>
-        <ul class="historico-vinculo">
+        <div class="card-sec">
+        <h2>Histórico de vínculos anteriores</h2>
+        <ul class="historico-lista">
             {% for h in historico %}
-            <li class="encerrado">
-                <strong>{{ h.supervisor }}</strong>{% if h.projeto %} — {{ h.projeto }}{% endif %}
-                — de {{ h.data_inicio.strftime("%d/%m/%Y") }} até {{ h.data_desvinculacao.strftime("%d/%m/%Y") }}
-                <span class="motivo">Motivo: {{ h.motivo_desvinculacao }}</span>
+            <li>
+                <svg class="ico-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <span class="h-sup">{{ h.supervisor }}{% if h.projeto %} <span style="font-weight:400; color:var(--texto-600);">— {{ h.projeto }}</span>{% endif %}</span>
+                <span class="h-per">de {{ h.data_inicio.strftime("%d/%m/%Y") }} até {{ h.data_desvinculacao.strftime("%d/%m/%Y") }}</span>
+                <span class="h-mot">Motivo: {{ h.motivo_desvinculacao }}</span>
                 {% if eh_coordenador %}
-                <button type="button" class="botao" style="margin-left:10px; padding:2px 10px; font-size:0.85em;"
+                <span class="h-acao">
+                <button type="button" class="botao" style="padding:5px 14px; font-size:0.85em;"
                         data-id="{{ h.id }}"
                         data-supervisor="{{ h.supervisor }}"
                         data-inicio="{{ h.data_inicio.strftime('%Y-%m-%d') }}"
                         data-fim="{{ h.data_desvinculacao.strftime('%Y-%m-%d') }}"
-                        onclick="abrirEditarHistorico(this)">Editar datas</button>
+                        onclick="abrirEditarHistorico(this)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Editar datas</button>
+                </span>
                 {% endif %}
             </li>
             {% endfor %}
         </ul>
+        </div>
         {% endif %}
     </div>
 

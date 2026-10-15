@@ -1183,14 +1183,65 @@ def tela_vinculos_tecnicos_coordenador(request: Request):
         raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
 
     vinculos = repositorio_vinculo_tecnico.listar_todos_vinculos_ativos()
+    hoje = date.today()
+    for v in vinculos:
+        ini = v.get("data_inicio")
+        try:
+            v["novo"] = bool(ini and (hoje - ini).days <= 7)
+        except Exception:
+            v["novo"] = False
     return templates.TemplateResponse(
         "vinculos_tecnicos_coordenador.html",
         {
             "request": request,
             "supervisor": request.session.get("supervisor"),
             "vinculos": vinculos,
+            "disponiveis": repositorio_vinculo_tecnico.listar_tecnicos_disponiveis(),
         },
     )
+
+
+def _montar_equipes():
+    """Agrupa os vínculos ativos por supervisor (equipes de hoje)."""
+    hoje = date.today()
+    equipes = {}
+    for v in repositorio_vinculo_tecnico.listar_equipes_ativas():
+        inicio = v.get("data_inicio")
+        v["novo"] = bool(inicio and (hoje - inicio).days <= 7)
+        equipes.setdefault(v["supervisor"], []).append(v)
+    return [
+        {"supervisor": sup, "tecnicos": tecs, "total": len(tecs)}
+        for sup, tecs in sorted(equipes.items(), key=lambda kv: (kv[0] or "").casefold())
+    ]
+
+
+@app.get("/coordenador/equipes")
+def tela_equipes_coordenador(request: Request):
+    """Tela unificada: agora fica em Técnicos."""
+    return RedirectResponse("/coordenador/vinculos-tecnicos", status_code=303)
+
+
+@app.get("/coordenador/equipes.xlsx")
+def baixar_equipes_xlsx(request: Request):
+    """Mesma lista da tela Equipes, em Excel."""
+    if not supervisor_logado(request):
+        return RedirectResponse("/login", status_code=303)
+    if request.session.get("tipo") != "coordenador":
+        raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
+
+    cabecalho = ["Supervisor", "Técnico", "Atividade", "Vínculo desde"]
+    wb, ws = _nova_planilha(cabecalho)
+    ws.title = "Equipes"
+    for equipe in _montar_equipes():
+        for v in equipe["tecnicos"]:
+            ws.append([
+                equipe["supervisor"], v["tecnico"], v.get("atividade") or "",
+                v["data_inicio"].strftime("%d/%m/%Y") if v.get("data_inicio") else "",
+            ])
+    for d in repositorio_vinculo_tecnico.listar_tecnicos_disponiveis():
+        ws.append(["(disponível — sem supervisor)", d["tecnico"], d.get("atividade") or "", ""])
+    _ajustar_largura_colunas(ws, cabecalho)
+    return _resposta_xlsx(wb, "equipes_supervisores.xlsx")
 
 
 @app.get("/coordenador/cadastros/associar")

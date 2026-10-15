@@ -4,6 +4,80 @@
     <meta charset="UTF-8">
     <title>Vínculos de Técnicos</title>
     <link rel="stylesheet" href="/static/style.css?v=5">
+    <style>
+        .alternar { display:inline-flex; background:var(--areia-100); border-radius:10px; padding:3px; margin:4px 0 16px; }
+        .alternar button { margin:0; border:0; background:transparent; color:var(--texto-600); font-weight:600; font-size:.85rem;
+                           padding:7px 16px; border-radius:8px; cursor:pointer; box-shadow:none; transform:none; }
+        .alternar button.ativo { background:#fffefb; color:var(--verde-800); box-shadow:0 1px 3px rgba(18,48,36,.12); }
+        .equipe-card { background:#fffefb; border:1px solid var(--borda); border-radius:12px; margin-bottom:14px; overflow:hidden; }
+        .equipe-topo { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px 20px; cursor:pointer; user-select:none; transition:background .12s ease; }
+        .equipe-topo:hover { background:var(--verde-50); }
+        .equipe-topo h2 { margin:0; font-size:1.02rem; color:var(--verde-900); border:0; padding:0; }
+        .equipe-topo .seta { color:var(--texto-600); font-size:.75rem; margin-right:10px; display:inline-block; transition:transform .15s ease; }
+        .equipe-card.aberto .seta { transform:rotate(90deg); }
+        .equipe-card.aberto .equipe-topo { border-bottom:1px solid var(--borda); }
+        .equipe-total { color:var(--verde-800); background:var(--verde-100); font-weight:700; font-size:.78rem; padding:3px 12px; border-radius:999px; white-space:nowrap; }
+        .equipe-lista { display:none; }
+        .equipe-card.aberto .equipe-lista { display:block; }
+        .equipe-card table { width:100%; border-collapse:collapse; }
+        .equipe-card th { text-align:left; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--texto-600);
+                          font-weight:600; padding:6px 20px; background:var(--areia-50); }
+        .equipe-card td { padding:9px 20px; border-top:1px solid #efece2; font-size:.88rem; }
+        .equipe-card tbody tr:hover td { background:var(--verde-50); }
+        .nome-tec { font-weight:600; color:var(--verde-900); text-decoration:none; }
+        .nome-tec:hover { color:var(--verde-700); text-decoration:underline; }
+        .col-data { white-space:nowrap; font-variant-numeric:tabular-nums; color:var(--texto-600); }
+        .col-ativ { color:var(--texto-600); }
+        .selo-novo { background:var(--dourado-100); color:var(--dourado-600); font-size:.66rem; font-weight:700; letter-spacing:.04em;
+                     text-transform:uppercase; padding:2px 8px; border-radius:999px; margin-left:8px; }
+        .equipe-card.disponiveis { border-color:#e6cdb8; background:#fffdfa; }
+        .equipe-card.disponiveis .equipe-total { background:var(--dourado-100); color:var(--dourado-600); }
+        .acoes-lista { margin:-4px 0 12px; font-size:.82rem; }
+        .acoes-lista a { color:var(--verde-700); font-weight:600; cursor:pointer; margin-right:14px; }
+
+        /* ---- visual novo: cartões coloridos por supervisor ---- */
+        .alternar { background:transparent; padding:0; gap:10px; display:inline-flex; }
+        .alternar button { background:#fff; border:1px solid var(--borda); box-shadow:0 1px 4px rgba(0,0,0,.06); border-radius:999px; padding:9px 20px; width:auto; }
+        .alternar button.ativo { background:var(--verde-700,#1f6b45); color:#fff; border-color:var(--verde-700,#1f6b45); }
+        .barra-vista { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+        .barra-vista .alternar { margin:0; }
+        .acoes-lista { margin:0; display:flex; gap:0; align-items:center; font-size:.85rem; }
+        .acoes-lista a { margin:0; padding:0 14px; color:var(--verde-700,#1f6b45); }
+        .acoes-lista a + a { border-left:1px solid var(--borda); }
+        .equipe-card { --c:#2e8b57; --cb:#d9f0e2; --cf:#1f6b45; border:0; border-left:5px solid var(--c); border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:10px; }
+        .equipe-card.c1 { --c:#2563eb; --cb:#dbe8fe; --cf:#1e4fb8; }
+        .equipe-card.c2 { --c:#9333ea; --cb:#eddcfb; --cf:#7424bd; }
+        .equipe-card.c3 { --c:#f97316; --cb:#fde6d3; --cf:#c2570c; }
+        .equipe-card.c4 { --c:#14b8a6; --cb:#d3f3ee; --cf:#0d7f73; }
+        .equipe-card.c5 { --c:#ec4899; --cb:#fbdcec; --cf:#b52a74; }
+        .equipe-card.disponiveis { --c:#a8a29e; --cb:#ece9e4; --cf:#57534e; background:#fff; }
+        .equipe-topo { padding:10px 18px 10px 14px; gap:14px; justify-content:flex-start; }
+        .equipe-topo h2 { flex:1; min-width:0; font-size:.95rem; font-weight:700; }
+        .equipe-topo .seta { margin:0; font-size:1.1rem; color:var(--texto-600); }
+        .equipe-topo .seta2 { color:var(--texto-600); font-size:1rem; transition:transform .15s ease; display:inline-block; }
+        .equipe-card.aberto .seta2 { transform:rotate(180deg); }
+        .equipe-total { background:var(--cb); color:var(--cf); font-size:.8rem; padding:5px 14px; }
+        .equipe-card.disponiveis .equipe-total { background:var(--cb); color:var(--cf); }
+        .avatar-sup { width:36px; height:36px; flex:0 0 36px; border-radius:50%; background:var(--c); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:.78rem; font-weight:700; }
+
+        /* ---- Lista completa no padrão novo ---- */
+        .tabela-auditoria-wrap { background:#fff; border:1px solid var(--borda); border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,.05); overflow:hidden; }
+        .tabela-auditoria { width:100%; border-collapse:collapse; font-size:.82rem; }
+        .tabela-auditoria th { text-align:left; padding:12px; background:var(--verde-700,#1f6b45); color:#fff; font-weight:700; font-size:.78rem; letter-spacing:.02em; border:0; }
+        .tabela-auditoria td { padding:7px 12px; border-bottom:1px solid #eef0ea; vertical-align:middle; }
+        .tabela-auditoria tr.linha-principal:hover td { background:#fafbf8; }
+        .tabela-auditoria .col-tecnico a { color:inherit; text-decoration:none; font-weight:600; }
+        .tabela-auditoria .col-tecnico a:hover { text-decoration:underline; }
+        .tabela-auditoria .col-tecnico small { font-size:.72rem; }
+        .pessoa-l { display:flex; align-items:center; gap:12px; }
+        .avatar-l { width:28px; height:28px; flex:0 0 28px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:.68rem; font-weight:700; }
+        .pill-ativ { display:inline-block; padding:3px 10px; border-radius:999px; font-size:.74rem; background:#e7f3ec; color:#1f6b45; white-space:nowrap; }
+        .pager { display:flex; align-items:center; gap:6px; margin:0 0 12px; flex-wrap:wrap; font-size:.85rem; color:var(--texto-600); }
+        .pager button { width:auto; margin:0; min-width:34px; padding:6px 10px; border:1px solid var(--borda); background:#fff; border-radius:8px; font:inherit; cursor:pointer; box-shadow:none; color:inherit; }
+        .pager button.atual { background:var(--verde-700,#1f6b45); border-color:var(--verde-700,#1f6b45); color:#fff; }
+        .pager button:disabled { opacity:.4; cursor:default; }
+        .pager select { width:auto; margin:0 0 0 auto; padding:5px 8px; border:1px solid var(--borda); border-radius:8px; background:#fff; font:inherit; }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -43,6 +117,79 @@
             <span id="contador-linhas" style="color:var(--texto-600); font-size:0.85rem; padding-bottom:10px;"></span>
         </div>
 
+        <div class="barra-vista">
+        <div class="alternar" role="tablist">
+            <button type="button" id="btn-vista-super" class="ativo">👥 Por supervisor</button>
+            <button type="button" id="btn-vista-lista">☰ Lista completa</button>
+        </div>
+        <p class="acoes-lista" id="acoes-lista">
+            <a id="expandir-todos">⌄ Abrir todas as equipes</a>
+            <a id="recolher-todos">⌃ Fechar todas</a>
+        </p>
+        </div>
+
+        <!-- Vista 1: por supervisor (abre e fecha) -->
+        <div id="vista-super">
+            {% for sup, itens in vinculos | groupby('supervisor') %}
+            {% set nome_sup = (sup or "Sem supervisor") | replace("JOS&#65533;", "JOSÉ") | replace("J&#65533;NIOR", "JÚNIOR") %}
+            {% set pp = nome_sup.split() %}
+            <section class="equipe-card c{{ loop.index0 % 6 }}" data-supervisor="{{ sup }}" data-sup-lower="{{ (sup or '') | lower }}">
+                <div class="equipe-topo">
+                    <span class="seta">›</span>
+                    <span class="avatar-sup">{{ pp[0][0] }}{{ pp[1][0] if pp|length > 1 else '' }}</span>
+                    <h2>{{ nome_sup }}</h2>
+                    <span class="equipe-total">{{ itens|length }} técnico{{ '' if itens|length == 1 else 's' }}</span>
+                    <span class="seta2">⌄</span>
+                </div>
+                <div class="equipe-lista">
+                <table>
+                    <thead><tr><th>Técnico</th><th>Atividade</th><th>Vínculo desde</th></tr></thead>
+                    <tbody>
+                        {% for v in itens %}
+                        <tr data-tecnico="{{ v.tecnico | lower }}">
+                            <td>
+                                <a class="nome-tec" href="/tecnicos/{{ v.tecnico | urlencode }}">{{ v.tecnico }}</a>
+                                {% if v.novo %}<span class="selo-novo">novo</span>{% endif %}
+                            </td>
+                            <td class="col-ativ">{{ v.atividade or "—" }}</td>
+                            <td class="col-data">{{ v.data_inicio.strftime("%d/%m/%Y") if v.data_inicio else "—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </section>
+            {% endfor %}
+
+            {% if disponiveis %}
+            <section class="equipe-card disponiveis" id="bloco-disponiveis">
+                <div class="equipe-topo">
+                    <span class="seta">›</span>
+                    <span class="avatar-sup">?</span>
+                    <h2>Técnicos disponíveis <span style="font-weight:400; font-size:.82rem; color:var(--texto-600);">— ativos, sem supervisor</span></h2>
+                    <span class="equipe-total">{{ disponiveis|length }} técnico{{ '' if disponiveis|length == 1 else 's' }}</span>
+                    <span class="seta2">⌄</span>
+                </div>
+                <div class="equipe-lista">
+                <table>
+                    <thead><tr><th>Técnico</th><th>Atividade</th></tr></thead>
+                    <tbody>
+                        {% for d in disponiveis %}
+                        <tr data-tecnico="{{ d.tecnico | lower }}">
+                            <td><a class="nome-tec" href="/tecnicos/{{ d.tecnico | urlencode }}">{{ d.tecnico }}</a></td>
+                            <td class="col-ativ">{{ d.atividade or "—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <!-- Vista 2: lista completa (tabela de auditoria, como antes) -->
+        <div id="vista-lista" style="display:none;">
+        <div class="pager" id="pager"></div>
         <div class="tabela-auditoria-wrap">
             <table class="tabela-auditoria">
                 <thead>
@@ -50,6 +197,8 @@
                         <th style="width:26px;"></th>
                         <th>Técnico</th>
                         <th>Supervisor</th>
+                        <th>Atividade</th>
+                        <th>Vínculo desde</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -57,15 +206,22 @@
                     <tr data-supervisor="{{ v.supervisor }}" data-tecnico="{{ v.tecnico | lower }}" class="linha-principal" onclick="toggleDetalhe(this)">
                         <td class="col-seta">▸</td>
                         <td class="col-tecnico">
-                            <a href="/tecnicos/{{ v.tecnico | urlencode }}" onclick="event.stopPropagation()">{{ v.tecnico }}</a>
-                            <br>
-                            <small style="color:var(--texto-600); font-weight:400;">{{ v.projeto or "—" }} · {{ v.atividade or "—" }}</small>
+                            <div class="pessoa-l">
+                                <span class="avatar-l" data-nome="{{ v.tecnico }}"></span>
+                                <span>
+                                    <a href="/tecnicos/{{ v.tecnico | urlencode }}" onclick="event.stopPropagation()">{{ v.tecnico }}</a>
+                                    <br>
+                                    <small style="color:var(--texto-600); font-weight:400;">{{ v.projeto or "—" }}</small>
+                                </span>
+                            </div>
                         </td>
-                        <td>{{ v.supervisor }}</td>
+                        <td>{{ (v.supervisor or "—") | replace("JOS&#65533;", "JOSÉ") | replace("J&#65533;NIOR", "JÚNIOR") }}</td>
+                        <td>{% if v.atividade %}<span class="pill-ativ">{{ v.atividade }}</span>{% else %}—{% endif %}</td>
+                        <td style="white-space:nowrap; color:var(--texto-600);">{{ v.data_inicio.strftime("%d/%m/%Y") if v.data_inicio else "—" }}</td>
                     </tr>
                     <tr data-supervisor="{{ v.supervisor }}" data-tecnico="{{ v.tecnico | lower }}" class="linha-detalhe" style="display:none;">
                         <td></td>
-                        <td colspan="2">
+                        <td colspan="4">
                             <div class="grade-detalhe">
                                 <div><span>CPF</span>{{ v.cpf or "—" }}</div>
                                 <div><span>Contato</span>{{ v.contato or "—" }}</div>
@@ -83,6 +239,7 @@
                 </tbody>
             </table>
         </div>
+        </div>
     </div>
 
     <script>
@@ -98,32 +255,127 @@
         const inputBusca = document.getElementById('filtro-busca');
         const linhasPrincipais = Array.from(document.querySelectorAll('.tabela-auditoria .linha-principal'));
         const contador = document.getElementById('contador-linhas');
+        const cartoes = Array.from(document.querySelectorAll('#vista-super .equipe-card'));
+        const vistaSuper = document.getElementById('vista-super');
+        const vistaLista = document.getElementById('vista-lista');
+        const btnSuper = document.getElementById('btn-vista-super');
+        const btnLista = document.getElementById('btn-vista-lista');
+        let vistaAtual = 'super';
+        let pagina = 1, porPag = 15;
+        const pager = document.getElementById('pager');
+        const CORES = [['#d6f1e0','#1f6b45'],['#d9e8fb','#255a9b'],['#ece4fb','#6a3fb0'],['#fde8dc','#a4501f'],['#fbdde8','#a42a5a'],['#fff3c4','#8a6d00']];
+        document.querySelectorAll('.avatar-l').forEach(function (a) {
+            const nome = a.dataset.nome || '';
+            const p = nome.trim().split(/\s+/);
+            a.textContent = ((p[0] || '')[0] || '') + ((p.length > 1 ? p[1] : '')[0] || '');
+            let h = 0; for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
+            const c = CORES[h % CORES.length];
+            a.style.background = c[0]; a.style.color = c[1];
+        });
+        function desenharPager(total, paginas, ini, fim) {
+            pager.innerHTML = '';
+            function btn(txt, pg, extra) {
+                const b = document.createElement('button');
+                b.type = 'button'; b.textContent = txt;
+                if (extra === 'atual') b.className = 'atual';
+                if (extra === 'off') b.disabled = true;
+                else b.addEventListener('click', function () { pagina = pg; aplicarFiltro(); });
+                pager.appendChild(b);
+            }
+            const info = document.createElement('span');
+            info.textContent = total ? ('Mostrando ' + (ini + 1) + '–' + fim + ' de ' + total + '  ') : 'Nenhum resultado';
+            pager.appendChild(info);
+            if (paginas > 1) {
+                btn('‹', pagina - 1, pagina === 1 ? 'off' : '');
+                for (let i = 1; i <= paginas; i++) {
+                    if (i === 1 || i === paginas || Math.abs(i - pagina) <= 1) btn(String(i), i, i === pagina ? 'atual' : '');
+                    else if (Math.abs(i - pagina) === 2) { const r = document.createElement('span'); r.textContent = '…'; pager.appendChild(r); }
+                }
+                btn('›', pagina + 1, pagina === paginas ? 'off' : '');
+            }
+            const sel = document.createElement('select');
+            [10, 15, 25, 50].forEach(function (n) { const o = document.createElement('option'); o.value = n; o.textContent = n + ' por página'; if (n === porPag) o.selected = true; sel.appendChild(o); });
+            sel.addEventListener('change', function () { porPag = parseInt(sel.value, 10); pagina = 1; aplicarFiltro(); });
+            pager.appendChild(sel);
+        }
 
         function aplicarFiltro() {
             const supervisor = selectSupervisor.value;
             const busca = inputBusca.value.trim().toLowerCase();
-            let visiveis = 0;
 
+            // --- lista completa (com paginação) ---
+            const casam = linhasPrincipais.filter(function (linha) {
+                return (!supervisor || linha.dataset.supervisor === supervisor) &&
+                       (!busca || linha.dataset.tecnico.includes(busca));
+            });
+            const paginas = Math.max(1, Math.ceil(casam.length / porPag));
+            if (pagina > paginas) pagina = paginas;
+            const ini = (pagina - 1) * porPag, fim = ini + porPag;
+            const mostrar = new Set(casam.slice(ini, fim));
             linhasPrincipais.forEach(function (linha) {
-                const bateSupervisor = !supervisor || linha.dataset.supervisor === supervisor;
-                const bateBusca = !busca || linha.dataset.tecnico.includes(busca);
-                const mostra = bateSupervisor && bateBusca;
+                const mostra = mostrar.has(linha);
                 linha.style.display = mostra ? '' : 'none';
-                // Some junto o detalhe (se estava aberto) quando a linha principal é escondida pelo filtro
-                const detalhe = linha.nextElementSibling;
                 if (!mostra) {
-                    detalhe.style.display = 'none';
+                    linha.nextElementSibling.style.display = 'none';
                     linha.querySelector('.col-seta').textContent = '▸';
                 }
-                if (mostra) visiveis++;
+            });
+            const visiveis = casam.length;
+            desenharPager(casam.length, paginas, ini, Math.min(fim, casam.length));
+
+            // --- por supervisor ---
+            let sups = 0, tecs = 0;
+            cartoes.forEach(function (card) {
+                const ehDisp = card.id === 'bloco-disponiveis';
+                const supOk = ehDisp ? !supervisor : (!supervisor || card.dataset.supervisor === supervisor);
+                const nomeBate = !busca || (!ehDisp && card.dataset.supLower.includes(busca));
+                let n = 0;
+                card.querySelectorAll('tbody tr').forEach(function (tr) {
+                    const mostra = supOk && (nomeBate || tr.dataset.tecnico.includes(busca));
+                    tr.style.display = mostra ? '' : 'none';
+                    if (mostra) n++;
+                });
+                card.style.display = n ? '' : 'none';
+                if (busca || supervisor) card.classList.toggle('aberto', n > 0);
+                else card.classList.remove('aberto');
+                if (n) { sups++; tecs += n; }
             });
 
-            contador.textContent = visiveis + ' de ' + linhasPrincipais.length + ' técnico(s)';
+            if (vistaAtual === 'lista') {
+                contador.textContent = visiveis + ' de ' + linhasPrincipais.length + ' técnico(s)';
+            } else {
+                contador.textContent = sups + ' bloco(s) · ' + tecs + ' técnico(s)';
+            }
         }
 
-        selectSupervisor.addEventListener('change', aplicarFiltro);
-        inputBusca.addEventListener('input', aplicarFiltro);
-        aplicarFiltro();
+        function trocarVista(v) {
+            vistaAtual = v;
+            vistaSuper.style.display = v === 'super' ? '' : 'none';
+            vistaLista.style.display = v === 'lista' ? '' : 'none';
+            document.getElementById('acoes-lista').style.display = v === 'super' ? '' : 'none';
+            btnSuper.classList.toggle('ativo', v === 'super');
+            btnLista.classList.toggle('ativo', v === 'lista');
+            try { localStorage.setItem('vista_tecnicos', v); } catch (e) {}
+            aplicarFiltro();
+        }
+
+        cartoes.forEach(function (card) {
+            card.querySelector('.equipe-topo').addEventListener('click', function () { card.classList.toggle('aberto'); });
+        });
+        document.getElementById('expandir-todos').addEventListener('click', function () {
+            cartoes.forEach(function (c) { if (c.style.display !== 'none') c.classList.add('aberto'); });
+        });
+        document.getElementById('recolher-todos').addEventListener('click', function () {
+            cartoes.forEach(function (c) { c.classList.remove('aberto'); });
+        });
+        btnSuper.addEventListener('click', function () { trocarVista('super'); });
+        btnLista.addEventListener('click', function () { trocarVista('lista'); });
+        selectSupervisor.addEventListener('change', function () { pagina = 1; aplicarFiltro(); });
+        inputBusca.addEventListener('input', function () { pagina = 1; aplicarFiltro(); });
+
+        let inicial = 'super';
+        try { inicial = localStorage.getItem('vista_tecnicos') || 'super'; } catch (e) {}
+        trocarVista(inicial === 'lista' ? 'lista' : 'super');
     </script>
 </body>
 </html>

@@ -5,15 +5,41 @@
     <title>Técnicos desativados e descredenciados</title>
     <link rel="stylesheet" href="/static/style.css?v=5">
     <style>
-        /* Espaçamento mais compacto só nesta página — não mexe no
-           .lista-tecnicos usado nas outras telas do sistema. */
-        .pagina-desativados .lista-tecnicos li {
-            padding: 8px 14px;
-            margin-bottom: 6px;
-        }
-        .pagina-desativados .lista-tecnicos li small {
-            line-height: 1.3;
-        }
+        .barra-desat{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+        .campo-busca{position:relative;flex:0 0 320px}
+        .campo-busca .ic{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--verde-700,#1f6b45)}
+        .pagina-desativados .campo-busca input{width:100%;margin:0;padding:11px 14px 11px 40px;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+        .pagina-desativados .barra-desat select{width:230px;flex:0 0 230px;margin:0;padding:11px 12px;height:auto;background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+        #contador-tecnico-desativados{color:var(--texto-600);font-size:.85rem}
+        .abas-int{display:flex;gap:10px;margin-bottom:12px}
+        .pagina-desativados .aba-int{width:auto;margin:0;box-shadow:0 1px 4px rgba(0,0,0,.06);border:1px solid var(--borda);background:#fff;padding:10px 20px;border-radius:999px;font:inherit;font-weight:600;color:var(--texto-600);cursor:pointer}
+        .pagina-desativados .aba-int.ativa{background:var(--verde-700,#1f6b45);border-color:var(--verde-700,#1f6b45);color:#fff}
+        .subtitulo-int{color:var(--texto-600);font-size:.92rem;margin:0 0 12px}
+        .cartao-tab{background:#fff;border:1px solid var(--borda);border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.05);overflow:hidden}
+        .tab-des{width:100%;border-collapse:collapse;font-size:.82rem}
+        .tab-des th{text-align:left;padding:12px 12px;background:var(--verde-700,#1f6b45);border-bottom:0;color:#fff;font-weight:700;font-size:.78rem;letter-spacing:.02em}
+        .tab-des td{padding:7px 12px;border-bottom:1px solid #eef0ea;vertical-align:middle}
+        .tab-des tr.item:hover{background:#fafbf8}
+        .pessoa{display:flex;align-items:center;gap:12px}
+        .pessoa a{color:inherit;text-decoration:none;font-weight:600}
+        .avatar{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;flex:0 0 28px}
+        .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.74rem;white-space:nowrap}
+        .pill-fim{background:#fde8dc;color:#a4501f}
+        .pill-dis{background:#ece4fb;color:#6a3fb0}
+        .com-ic{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+        .com-ic .ic{color:var(--texto-600)}
+        .pagina-desativados .ver-det{all:unset;cursor:pointer;color:var(--verde-700,#1f6b45);text-decoration:underline;display:inline-flex;align-items:center;gap:8px}
+        .pagina-desativados .tab-des form{margin:0}
+        .pagina-desativados .btn-reat{width:auto;margin:0;display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:8px;font-size:.78rem;font-weight:600;background:#fff;color:var(--verde-700,#1f6b45);border:1px solid #b9d3c5;box-shadow:none}
+        .pagina-desativados .btn-reat:hover{background:#eef6f1;border-color:var(--verde-700,#1f6b45);color:var(--verde-700,#1f6b45)}
+        .pagina-desativados .btn-reat .ic{width:14px;height:14px}
+        tr.linha-det td{background:#f6f4ee;color:var(--texto-600);font-size:.9rem;overflow-wrap:anywhere;padding:10px 16px 10px 58px}
+        .pager{display:flex;align-items:center;gap:6px;margin:0 0 12px;flex-wrap:wrap;font-size:.85rem;color:var(--texto-600)}
+        .pager button{width:auto;margin:0;min-width:34px;padding:6px 10px;border:1px solid var(--borda);background:#fff;border-radius:8px;font:inherit;cursor:pointer;box-shadow:none;color:inherit}
+        .pager button.atual{background:var(--verde-700,#1f6b45);border-color:var(--verde-700,#1f6b45);color:#fff}
+        .pager button:disabled{opacity:.4;cursor:default}
+        .pager select{width:auto;margin:0 0 0 auto;padding:5px 8px;border:1px solid var(--borda);border-radius:8px;background:#fff;font:inherit}
+        @media(max-width:800px){.cartao-tab{overflow-x:auto}.tab-des{min-width:640px}.campo-busca{flex:1 1 100%}}
     </style>
 </head>
 <body>
@@ -32,92 +58,171 @@
             <a href="/coordenador/ranking">Ranking</a>
         </nav>
 
-        <div style="display:flex; gap:14px; align-items:center; margin-bottom:20px; max-width:420px;">
-            <input type="text" id="filtro-tecnico-desativados" placeholder="Buscar técnico…" style="flex:1;">
-            <span id="contador-tecnico-desativados" style="color:var(--texto-600); font-size:0.85rem; white-space:nowrap;"></span>
+        <div class="barra-desat">
+            <div class="campo-busca"><svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input type="text" id="filtro-tecnico-desativados" placeholder="Buscar técnico…"></div>
+            <select id="filtro-motivo"><option value="">Todos os motivos</option></select>
+            <span id="contador-tecnico-desativados"></span>
         </div>
 
-        <h2>Técnicos desativados ({{ desativados|length }})</h2>
-        <p class="subtitulo">Cadastro desativado pelo coordenador, com motivo.</p>
-        {% if not desativados %}
-        <p class="subtitulo">Nenhum técnico desativado no momento.</p>
-        {% else %}
-        <ul class="lista-tecnicos" id="lista-desativados">
-            {% for t in desativados %}
-            <li data-nome="{{ t.nome | lower }}">
-                <a href="/tecnicos/{{ t.nome }}" style="text-decoration:none; color:inherit; flex:1; min-width:0;">
-                    <span>
-                        {{ t.nome }}
-                        <br>
-                        <small style="color: var(--texto-600); font-weight: 400;">
-                            Desativado em {{ t.data_desativacao.strftime("%d/%m/%Y") if t.data_desativacao else "—" }}
-                            · motivo: {{ t.motivo_desativacao or "—" }}
-                        </small>
-                    </span>
-                </a>
-                <span style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
-                    <span class="status pendente">Desativado</span>
-                    <form method="post" action="/coordenador/tecnicos-desativados/{{ t.id_tecnico_responsavel }}/reativar" onsubmit="return confirm('Reativar {{ t.nome }}?');" style="margin:0;">
-                        <button type="submit" class="botao">Reativar</button>
-                    </form>
-                </span>
-            </li>
-            {% endfor %}
-        </ul>
-        {% endif %}
+        <div class="abas-int">
+            <button type="button" class="aba-int ativa" data-alvo="painel-desat">Desativados ({{ desativados|length }})</button>
+            <button type="button" class="aba-int" data-alvo="painel-hist">Desvinculados ({{ historico_desvinculacoes|length }})</button>
+        </div>
 
-        <h2 style="margin-top:32px;">Histórico de descredenciamentos ({{ historico_desvinculacoes|length }})</h2>
-        <p class="subtitulo">Todo desvínculo já registrado, mesmo quem depois foi para outro supervisor (transferência).</p>
-        {% if not historico_desvinculacoes %}
-        <p class="subtitulo">Nenhum desvínculo registrado no momento.</p>
-        {% else %}
-        <ul class="lista-tecnicos" id="lista-historico-descredenciamentos">
-            {% for h in historico_desvinculacoes %}
-            <li data-nome="{{ h.tecnico | lower }}">
-                <a href="/tecnicos/{{ h.tecnico }}" style="text-decoration:none; color:inherit; flex:1; min-width:0;">
-                    <span>
-                        {{ h.tecnico }}
-                        <br>
-                        <small style="color: var(--texto-600); font-weight: 400;">
-                            Saiu de {{ h.supervisor_anterior }} em {{ h.data_desvinculacao.strftime("%d/%m/%Y") if h.data_desvinculacao else "—" }}
-                            · motivo: {{ h.motivo_desvinculacao or "—" }}
-                            {% if h.supervisor_atual %}· hoje com {{ h.supervisor_atual }}{% endif %}
-                        </small>
-                    </span>
-                </a>
-                <span style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
-                    {% if h.supervisor_atual %}
-                    <span class="status pendente">Transferido</span>
-                    {% else %}
-                    <span class="status pendente">Sem supervisor</span>
-                    {% endif %}
-                </span>
-            </li>
-            {% endfor %}
-        </ul>
-        {% endif %}
+        <div class="pager" id="pager"></div>
+
+        <section id="painel-desat" class="painel-int">
+            <p class="subtitulo-int">Cadastro desativado pelo coordenador. Clique em "detalhes" para ver a avaliação.</p>
+            {% if not desativados %}
+            <p class="subtitulo-int">Nenhum técnico desativado no momento.</p>
+            {% else %}
+            <div class="cartao-tab">
+            <table class="tab-des">
+                <thead><tr><th>Técnico</th><th>Motivo</th><th>Data</th><th>Detalhes</th><th>Ações</th></tr></thead>
+                <tbody>
+                {% for t in desativados %}
+                {% set partes = (t.motivo_desativacao or "—").split(" — ", 1) %}
+                <tr class="item" data-nome="{{ t.nome | lower }}" data-motivo="{{ partes[0] }}">
+                    <td><div class="pessoa"><span class="avatar" data-nome="{{ t.nome }}"></span><a href="/tecnicos/{{ t.nome }}">{{ t.nome }}</a></div></td>
+                    <td><span class="pill {{ 'pill-fim' if 'fim' in (partes[0]|lower) else 'pill-dis' }}">{{ partes[0] }}</span></td>
+                    <td><span class="com-ic"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>{{ t.data_desativacao.strftime("%d/%m/%Y") if t.data_desativacao else "—" }}</span></td>
+                    <td>{% if partes|length > 1 %}<button type="button" class="ver-det"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg><span>detalhes</span></button>{% else %}—{% endif %}</td>
+                    <td>
+                        <form method="post" action="/coordenador/tecnicos-desativados/{{ t.id_tecnico_responsavel }}/reativar" onsubmit="return confirm('Reativar {{ t.nome }}?');">
+                            <button type="submit" class="botao btn-reat"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>Reativar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% if partes|length > 1 %}<tr class="linha-det" hidden><td colspan="5">{{ partes[1] }}</td></tr>{% endif %}
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% endif %}
+        </section>
+
+        <section id="painel-hist" class="painel-int" hidden>
+            <p class="subtitulo-int">Todo desvínculo já registrado, inclusive quem depois foi para outro supervisor.</p>
+            {% if not historico_desvinculacoes %}
+            <p class="subtitulo-int">Nenhum desvínculo registrado no momento.</p>
+            {% else %}
+            <div class="cartao-tab">
+            <table class="tab-des">
+                <thead><tr><th>Técnico</th><th>Saiu de</th><th>Hoje com</th><th>Data</th><th>Motivo</th></tr></thead>
+                <tbody>
+                {% for h in historico_desvinculacoes %}
+                {% set mot = (h.motivo_desvinculacao or "—").split(" — ", 1)[0] %}
+                <tr class="item" data-nome="{{ h.tecnico | lower }}" data-motivo="{{ mot }}">
+                    <td><div class="pessoa"><span class="avatar" data-nome="{{ h.tecnico }}"></span><a href="/tecnicos/{{ h.tecnico }}">{{ h.tecnico }}</a></div></td>
+                    <td>{{ (h.supervisor_anterior or "—") | replace("JOS&#65533;", "JOSÉ") | replace("J&#65533;NIOR", "JÚNIOR") }}</td>
+                    <td>{% if h.supervisor_atual %}{{ h.supervisor_atual | replace("JOS&#65533;", "JOSÉ") | replace("J&#65533;NIOR", "JÚNIOR") }}{% else %}<span class="pill pill-dis">Sem supervisor</span>{% endif %}</td>
+                    <td><span class="com-ic"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>{{ h.data_desvinculacao.strftime("%d/%m/%Y") if h.data_desvinculacao else "—" }}</span></td>
+                    <td><span class="pill {{ 'pill-fim' if 'fim' in (mot|lower) else 'pill-dis' }}">{{ mot }}</span></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% endif %}
+        </section>
     </div>
 
     <script>
-        const inputFiltro = document.getElementById('filtro-tecnico-desativados');
-        const contador = document.getElementById('contador-tecnico-desativados');
-        if (inputFiltro) {
-            const linhas = Array.from(document.querySelectorAll('.pagina-desativados .lista-tecnicos li'));
+        (function () {
+            const busca = document.getElementById('filtro-tecnico-desativados');
+            const selMotivo = document.getElementById('filtro-motivo');
+            const contador = document.getElementById('contador-tecnico-desativados');
+            let painelAtual = 'painel-desat';
+            const CORES = [['#d6f1e0','#1f6b45'],['#d9e8fb','#255a9b'],['#ece4fb','#6a3fb0'],['#fde8dc','#a4501f'],['#fbdde8','#a42a5a'],['#fff3c4','#8a6d00']];
 
-            function aplicarFiltro() {
-                const busca = inputFiltro.value.trim().toLowerCase();
-                let visiveis = 0;
-                linhas.forEach(function (li) {
-                    const mostra = !busca || li.dataset.nome.includes(busca);
-                    li.style.display = mostra ? '' : 'none';
-                    if (mostra) visiveis++;
+            document.querySelectorAll('.avatar').forEach(function (a) {
+                const nome = a.dataset.nome || '';
+                const p = nome.trim().split(/\s+/);
+                a.textContent = ((p[0] || '')[0] || '') + ((p.length > 1 ? p[1] : '')[0] || '');
+                let h = 0; for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
+                const c = CORES[h % CORES.length];
+                a.style.background = c[0]; a.style.color = c[1];
+            });
+
+            function montarMotivos() {
+                const motivos = new Set();
+                document.querySelectorAll('#' + painelAtual + ' tr.item').forEach(function (e) { if (e.dataset.motivo && e.dataset.motivo !== '—') motivos.add(e.dataset.motivo); });
+                selMotivo.innerHTML = '<option value="">Todos os motivos</option>';
+                Array.from(motivos).sort().forEach(function (m) { const o = document.createElement('option'); o.value = m; o.textContent = m; selMotivo.appendChild(o); });
+            }
+            montarMotivos();
+
+            const pager = document.getElementById('pager');
+            let pagina = 1, porPag = 15;
+
+            function aplicar() {
+                const q = busca.value.trim().toLowerCase();
+                const mot = selMotivo.value;
+                const itens = Array.from(document.querySelectorAll('#' + painelAtual + ' tr.item'));
+                const casam = itens.filter(function (el) {
+                    return (!q || el.dataset.nome.includes(q)) && (!mot || el.dataset.motivo === mot);
                 });
-                contador.textContent = busca ? (visiveis + ' de ' + linhas.length + ' técnico(s)') : '';
+                const paginas = Math.max(1, Math.ceil(casam.length / porPag));
+                if (pagina > paginas) pagina = paginas;
+                const ini = (pagina - 1) * porPag, fim = ini + porPag;
+                const visiveis = new Set(casam.slice(ini, fim));
+                itens.forEach(function (el) {
+                    const v = visiveis.has(el);
+                    el.style.display = v ? '' : 'none';
+                    const prox = el.nextElementSibling;
+                    if (prox && prox.classList.contains('linha-det') && !v) prox.hidden = true;
+                });
+                contador.textContent = (q || mot) ? (casam.length + ' resultado(s)') : '';
+                desenharPager(casam.length, paginas, ini, Math.min(fim, casam.length));
             }
 
-            inputFiltro.addEventListener('input', aplicarFiltro);
-            aplicarFiltro();
-        }
+            function desenharPager(total, paginas, ini, fim) {
+                pager.innerHTML = '';
+                function btn(txt, pg, extra) {
+                    const b = document.createElement('button');
+                    b.type = 'button'; b.textContent = txt;
+                    if (extra === 'atual') b.className = 'atual';
+                    if (extra === 'off') b.disabled = true;
+                    else b.addEventListener('click', function () { pagina = pg; aplicar(); });
+                    pager.appendChild(b);
+                }
+                const info = document.createElement('span');
+                info.textContent = total ? ('Mostrando ' + (ini + 1) + '–' + fim + ' de ' + total + '  ') : 'Nenhum resultado';
+                pager.appendChild(info);
+                if (paginas > 1) {
+                    btn('‹', pagina - 1, pagina === 1 ? 'off' : '');
+                    for (let i = 1; i <= paginas; i++) {
+                        if (i === 1 || i === paginas || Math.abs(i - pagina) <= 1) btn(String(i), i, i === pagina ? 'atual' : '');
+                        else if (Math.abs(i - pagina) === 2) { const r = document.createElement('span'); r.textContent = '…'; pager.appendChild(r); }
+                    }
+                    btn('›', pagina + 1, pagina === paginas ? 'off' : '');
+                }
+                const sel = document.createElement('select');
+                [10, 15, 25, 50].forEach(function (n) { const o = document.createElement('option'); o.value = n; o.textContent = n + ' por página'; if (n === porPag) o.selected = true; sel.appendChild(o); });
+                sel.addEventListener('change', function () { porPag = parseInt(sel.value, 10); pagina = 1; aplicar(); });
+                pager.appendChild(sel);
+            }
+
+            document.querySelectorAll('.aba-int').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    document.querySelectorAll('.aba-int').forEach(function (x) { x.classList.toggle('ativa', x === b); });
+                    document.querySelectorAll('.painel-int').forEach(function (p) { p.hidden = (p.id !== b.dataset.alvo); });
+                    painelAtual = b.dataset.alvo;
+                    pagina = 1;
+                    montarMotivos();
+                    aplicar();
+                });
+            });
+            document.querySelectorAll('.ver-det').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    const d = b.closest('tr').nextElementSibling;
+                    if (d && d.classList.contains('linha-det')) d.hidden = !d.hidden;
+                });
+            });
+            busca.addEventListener('input', function () { pagina = 1; aplicar(); });
+            selMotivo.addEventListener('change', function () { pagina = 1; aplicar(); });
+            aplicar();
+        })();
     </script>
 </body>
 </html>

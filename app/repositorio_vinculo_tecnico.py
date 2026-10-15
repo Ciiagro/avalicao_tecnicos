@@ -804,3 +804,65 @@ def editar_datas_historico(vinculo_id: int, data_inicio, data_desvinculacao,
                 {"id": v["id"], "ini": data_desvinculacao},
             )
     return {"vinculos_seguintes_ajustados": len(seguintes)}
+
+
+def listar_equipes_ativas():
+    """
+    Equipes de hoje: um registro por vínculo ATIVO (sem data de desvinculação),
+    para a tela "Equipes" do coordenador (supervisor -> seus técnicos).
+
+    Consulta leve (vinculo_tecnico + atividade do cadastro). Exclui técnico
+    desativado no cadastro mestre, mesmo que por algum motivo o vínculo dele
+    ainda esteja aberto.
+    """
+    engine = get_engine()
+    query = f"""
+        SELECT v.id AS vinculo_id, v.tecnico, v.supervisor,
+               COALESCE(NULLIF(trim(v.atividade), ''), cad.atividade) AS atividade,
+               v.data_inicio, v.data_fim_prevista
+        FROM vinculo_tecnico v
+        LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES_DEDUP}) cad
+               ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g')))
+                = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+        WHERE v.data_desvinculacao IS NULL
+          AND NOT EXISTS (
+              SELECT 1 FROM tecnicos t
+              WHERE t.ativo = FALSE
+                AND lower(trim(regexp_replace(t.nome, '\\s+', ' ', 'g')))
+                  = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+          )
+        ORDER BY v.supervisor, v.tecnico
+    """
+    with engine.connect() as conn:
+        linhas = conn.execute(text(query)).mappings().all()
+    return [dict(l) for l in linhas]
+
+
+def listar_tecnicos_disponiveis():
+    """
+    Técnicos ATIVOS no cadastro mestre que não têm vínculo ativo com nenhum
+    supervisor (os "Disponíveis" da tela de associar).
+    """
+    engine = get_engine()
+    query = f"""
+        SELECT t.nome AS tecnico, cad.atividade
+        FROM (
+            SELECT DISTINCT ON (lower(trim(regexp_replace(nome, '\\s+', ' ', 'g')))) nome
+            FROM tecnicos
+            WHERE ativo = TRUE
+            ORDER BY lower(trim(regexp_replace(nome, '\\s+', ' ', 'g'))), id_tecnico_responsavel DESC
+        ) t
+        LEFT JOIN ({QUERY_CADASTRO_ATIVIDADES_DEDUP}) cad
+               ON lower(trim(regexp_replace(cad.tecnico, '\\s+', ' ', 'g')))
+                = lower(trim(regexp_replace(t.nome, '\\s+', ' ', 'g')))
+        WHERE NOT EXISTS (
+            SELECT 1 FROM vinculo_tecnico v
+            WHERE v.data_desvinculacao IS NULL
+              AND lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+                = lower(trim(regexp_replace(t.nome, '\\s+', ' ', 'g')))
+        )
+        ORDER BY t.nome
+    """
+    with engine.connect() as conn:
+        linhas = conn.execute(text(query)).mappings().all()
+    return [dict(l) for l in linhas]
