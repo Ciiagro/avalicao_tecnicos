@@ -22,6 +22,18 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "tr
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
+
+def _nome_limpo(v):
+    """Só para EXIBIÇÃO: conserta acento quebrado que vem do banco (JOS&#65533; -> JOSÉ)."""
+    if not isinstance(v, str):
+        return v
+    for q in ("&#65533;", "\ufffd"):
+        v = v.replace("JOS" + q, "JOSÉ").replace("J" + q + "NIOR", "JÚNIOR")
+    return v
+
+
+templates.env.filters["nome_limpo"] = _nome_limpo
+
 # URL do painel de Ranking de Performance (Streamlit) — link externo mostrado
 # no menu pros supervisores. Fica disponível em qualquer template via
 # {{ RANK_ATEG_URL }}, sem precisar passar em cada rota.

@@ -28,7 +28,7 @@
         {% for supervisor, tecnicos in ranking_objetivo_por_supervisor.items() %}
         <details style="margin-bottom:10px; border:1px solid var(--borda); border-radius:12px; background:var(--areia-50);" {% if loop.first %}open{% endif %}>
             <summary style="cursor:pointer; padding:12px 18px; font-weight:700; color:var(--verde-900);">
-                {{ supervisor }} <span style="font-weight:400; color:var(--texto-600); font-size:0.85rem;">— {{ tecnicos|length }} técnico(s)</span>
+                {{ supervisor|nome_limpo }} <span style="font-weight:400; color:var(--texto-600); font-size:0.85rem;">— {{ tecnicos|length }} técnico(s)</span>
             </summary>
             <ul class="lista-tecnicos" style="margin:0 12px 12px;">
                 {% for t in tecnicos %}

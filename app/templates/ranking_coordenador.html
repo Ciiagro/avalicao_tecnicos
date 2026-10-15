@@ -23,10 +23,10 @@
         <ul class="lista-tecnicos">
             {% for s in ranking_supervisores %}
             <li>
-                <a href="/coordenador/{{ s.supervisor }}?mes={{ mes_valor }}" style="display:flex; justify-content:space-between; align-items:center; width:100%; text-decoration:none; color:inherit;">
+                <a href="/coordenador/{{ s.supervisor|urlencode }}?mes={{ mes_valor }}" style="display:flex; justify-content:space-between; align-items:center; width:100%; text-decoration:none; color:inherit;">
                     <span>
                         {% if s.posicao == 1 %}🥇{% elif s.posicao == 2 %}🥈{% elif s.posicao == 3 %}🥉{% else %}{{ s.posicao }}º{% endif %}
-                        &nbsp;<strong>{{ s.supervisor }}</strong>
+                        &nbsp;<strong>{{ s.supervisor|nome_limpo }}</strong>
                         <span style="color:#6b7280; font-size:0.85rem;">
                             &nbsp;— {{ s.avaliados }}/{{ s.total }} técnico(s) avaliado(s)
                         </span>

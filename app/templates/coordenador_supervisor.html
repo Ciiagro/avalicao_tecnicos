@@ -2,14 +2,14 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>{{ supervisor }} — {{ mes_referencia }}</title>
+    <title>{{ supervisor|nome_limpo }} — {{ mes_referencia }}</title>
     <link rel="stylesheet" href="/static/style.css?v=5">
 </head>
 <body>
     <div class="container">
         <img src="/static/logo_sistema.png" alt="Logo" class="logo-institucional">
         <div class="top-bar">
-            <h1>{{ supervisor }}</h1>
+            <h1>{{ supervisor|nome_limpo }}</h1>
             <a href="/logout">Sair</a>
         </div>
         <p class="subtitulo">
@@ -32,9 +32,9 @@
                 {% endif %}
             </div>
             {% if not autorizado %}
-            <form method="post" action="/coordenador/{{ supervisor }}/autorizar">
+            <form method="post" action="/coordenador/{{ supervisor|urlencode }}/autorizar">
                 <input type="hidden" name="mes" value="{{ mes_valor }}">
-                <button type="submit" class="botao">Autorizar {{ supervisor }} para {{ mes_referencia }}</button>
+                <button type="submit" class="botao">Autorizar {{ supervisor|nome_limpo }} para {{ mes_referencia }}</button>
             </form>
             {% endif %}
         </div>

@@ -63,10 +63,10 @@
             <ul>
                 {% for s in solicitacoes_pendentes %}
                 <li>
-                    <strong>{{ s.supervisor }}</strong> pediu prazo para {{ s.mes_referencia_label }}
+                    <strong>{{ s.supervisor|nome_limpo }}</strong> pediu prazo para {{ s.mes_referencia_label }}
                     {% if s.tecnico %}(estava avaliando {{ s.tecnico }}){% endif %}
                     ·
-                    <a href="/coordenador/{{ s.supervisor }}?mes={{ s.mes_referencia_valor }}">Ver e decidir →</a>
+                    <a href="/coordenador/{{ s.supervisor|urlencode }}?mes={{ s.mes_referencia_valor }}">Ver e decidir →</a>
                 </li>
                 {% endfor %}
             </ul>
@@ -97,7 +97,7 @@
             <div class="caixa-alerta-titulo">⚠️ Supervisores que ainda não lançaram nenhuma avaliação este mês</div>
             <ul>
                 {% for s in visao.nao_iniciados %}
-                <li><a href="/coordenador/{{ s.supervisor }}?mes={{ mes_valor }}">{{ s.supervisor }}</a> — {{ s.total }} técnico(s) pendente(s)</li>
+                <li><a href="/coordenador/{{ s.supervisor|urlencode }}?mes={{ mes_valor }}">{{ s.supervisor }}</a> — {{ s.total }} técnico(s) pendente(s)</li>
                 {% endfor %}
             </ul>
         </div>
@@ -110,7 +110,7 @@
             <div class="grafico-barras">
                 {% for s in grafico_base %}
                 <div class="grafico-barras-linha">
-                    <span class="grafico-barras-nome" title="{{ s.supervisor }}">{{ s.supervisor }}</span>
+                    <span class="grafico-barras-nome" title="{{ s.supervisor|nome_limpo }}">{{ s.supervisor|nome_limpo }}</span>
                     <div class="grafico-barras-trilho">
                         <div class="grafico-barras-preenchimento" style="width: {{ s.percentual }}%;"></div>
                     </div>
@@ -134,9 +134,9 @@
         <ul class="lista-tecnicos">
             {% for s in resumo %}
             <li{% if s.melhor_supervisor %} style="border: 2px solid #d4af37; background:#fffdf5;"{% endif %}>
-                <a class="linha-supervisor" href="/coordenador/{{ s.supervisor }}?mes={{ mes_valor }}">
+                <a class="linha-supervisor" href="/coordenador/{{ s.supervisor|urlencode }}?mes={{ mes_valor }}">
                     <div class="linha-supervisor-info">
-                        <div class="linha-supervisor-nome">{% if s.melhor_supervisor %}🏆 {% endif %}{{ s.supervisor }}</div>
+                        <div class="linha-supervisor-nome">{% if s.melhor_supervisor %}🏆 {% endif %}{{ s.supervisor|nome_limpo }}</div>
                         <div class="linha-supervisor-meta">
                             {{ s.total }} técnico(s){% if s.nao_avaliar %} · {{ s.nao_avaliar }} não avaliado(s) com motivo{% endif %}
                             {% if s.melhor_tecnico %}
