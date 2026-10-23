@@ -43,7 +43,9 @@ templates.env.filters["normalizar"] = repositorio.normalizar
 # Workaround: bug conhecido do Jinja2 no Python 3.14 quebra o cache interno
 # de templates (https://github.com/pallets/jinja/issues/2180).
 # Desabilitar o cache evita o erro "cannot use 'tuple' as a dict key".
-templates.env.cache = None
+import sys
+if sys.version_info >= (3, 14):
+    templates.env.cache = None
 
 
 @app.on_event("startup")

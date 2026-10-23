@@ -24,6 +24,30 @@ def rodar_migracoes_unicas():
     lock só acontece na subida do servidor, nunca durante o uso normal.
     """
     engine = get_engine()
+
+    # Atalho: se tudo já existe (o normal), não roda nenhum ALTER TABLE —
+    # evita travar tabela e perder tempo a cada "acordar" do servidor.
+    try:
+        with engine.connect() as conn:
+            ok = conn.execute(text("""
+                SELECT
+                  (SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'tecnicos'
+                      AND column_name IN ('motivo_desativacao','data_desativacao',
+                                          'mes_ano_capacitacao_metodologica',
+                                          'modalidade_capacitacao_metodologica')) = 4
+                  AND EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_schema = 'public' AND table_name = 'avaliacoes_tecnicos'
+                                 AND column_name = 'nota_final'
+                                 AND numeric_precision = 4 AND numeric_scale = 2)
+                  AND to_regclass('public.nao_avaliar_tecnico_mes') IS NOT NULL
+                  AND to_regclass('public.idx_nao_avaliar_supervisor_mes') IS NOT NULL
+            """)).scalar()
+        if ok:
+            return
+    except Exception:
+        pass  # na dúvida, segue e roda as migrações como antes
+
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE tecnicos ADD COLUMN IF NOT EXISTS motivo_desativacao TEXT;"))
         conn.execute(text("ALTER TABLE tecnicos ADD COLUMN IF NOT EXISTS data_desativacao DATE;"))
@@ -741,21 +765,75 @@ def tecnicos_do_supervisor_no_mes(supervisor: str, mes_ref: date):
     return sorted({r.tecnico for r in rows})
 
 
+def equipes_de_todos_supervisores_no_mes(mes_ref: date) -> dict[str, list[str]]:
+    """
+    Mesma regra de tecnicos_do_supervisor_no_mes, mas para TODOS os
+    supervisores de uma vez, em UMA consulta (antes era uma consulta por
+    supervisor, uma atrás da outra — lento quando o banco está longe).
+    Retorna {supervisor: [técnicos ordenados]}.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                WITH ref AS (
+                    SELECT (date_trunc('month', CAST(:mes_ref AS date))
+                            + interval '1 month - 1 day')::date AS fim_mes
+                ),
+                base AS (
+                    SELECT
+                        v.tecnico,
+                        v.supervisor,
+                        v.data_desvinculacao,
+                        v.motivo_desvinculacao,
+                        GREATEST(
+                            v.data_inicio,
+                            COALESCE((
+                                SELECT MAX(p.data_desvinculacao)
+                                FROM vinculo_tecnico p
+                                WHERE p.id <> v.id
+                                  AND p.supervisor <> v.supervisor
+                                  AND p.data_desvinculacao IS NOT NULL
+                                  AND p.motivo_desvinculacao LIKE 'Mudança de supervisor%'
+                                  AND lower(trim(regexp_replace(p.tecnico, '\\s+', ' ', 'g')))
+                                    = lower(trim(regexp_replace(v.tecnico, '\\s+', ' ', 'g')))
+                                  AND p.data_desvinculacao <= COALESCE(v.data_desvinculacao, CURRENT_DATE)
+                            ), v.data_inicio)
+                        ) AS inicio_efetivo
+                    FROM vinculo_tecnico v
+                    WHERE v.supervisor IS NOT NULL
+                )
+                SELECT DISTINCT ON (b.supervisor, lower(trim(regexp_replace(b.tecnico, '\\s+', ' ', 'g'))))
+                    b.supervisor, b.tecnico
+                FROM base b, ref
+                WHERE b.inicio_efetivo <= ref.fim_mes
+                  AND (
+                        b.data_desvinculacao IS NULL
+                        OR ((b.motivo_desvinculacao LIKE 'Mudança de supervisor%'
+                             OR b.motivo_desvinculacao LIKE 'Técnico desativado%')
+                            AND b.data_desvinculacao >= ref.fim_mes)
+                      )
+                ORDER BY b.supervisor, lower(trim(regexp_replace(b.tecnico, '\\s+', ' ', 'g'))), b.tecnico
+            """),
+            {"mes_ref": mes_ref},
+        ).fetchall()
+
+    equipes: dict[str, set] = {}
+    for r in rows:
+        equipes.setdefault(r.supervisor, set()).add(r.tecnico)
+    return {sup: sorted(tecs) for sup, tecs in equipes.items()}
+
+
 def mapa_tecnico_supervisor_no_mes(mes_ref: date) -> dict[str, str]:
     """
     {nome normalizado do técnico: supervisor} no mês escolhido, usando a MESMA
     regra da avaliação mensal (tecnicos_do_supervisor_no_mes). Usado pelo
     ranking para agrupar os técnicos igual à tela de avaliação.
     """
-    engine = get_engine()
-    with engine.connect() as conn:
-        supervisores = [r.supervisor for r in conn.execute(
-            text("SELECT DISTINCT supervisor FROM vinculo_tecnico WHERE supervisor IS NOT NULL;")
-        ).fetchall()]
-
+    equipes = equipes_de_todos_supervisores_no_mes(mes_ref)
     mapa: dict[str, str] = {}
-    for sup in sorted(supervisores):
-        for tec in tecnicos_do_supervisor_no_mes(sup, mes_ref):
+    for sup in sorted(equipes):
+        for tec in equipes[sup]:
             mapa.setdefault(normalizar(tec), sup)
     return mapa
 
@@ -1071,8 +1149,9 @@ def resumo_supervisores_para_mes(mes_ref: date):
     # técnicos do supervisor): quem estava com ele no último dia do mês.
     # Quem chegou depois não entra; quem saiu depois continua entrando.
     pares_vinculo = set()
+    _equipes_mes = equipes_de_todos_supervisores_no_mes(mes_ref)
     for sup in supervisores_com_vinculo:
-        for t in tecnicos_do_supervisor_no_mes(sup, mes_ref):
+        for t in _equipes_mes.get(sup, []):
             pares_vinculo.add((sup, t))
     pares_avaliados = {(a.supervisor, a.tecnico) for a in avaliados}
 
