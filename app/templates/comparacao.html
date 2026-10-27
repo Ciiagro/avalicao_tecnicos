@@ -15,7 +15,7 @@
         </div>
         <p class="subtitulo">Evolução das notas mês a mês. <a href="/minhas-avaliacoes">Ver histórico completo</a></p>
 
-        {% if meses %}
+        {% if meses and request.query_params.get('sup') %}
         <div style="margin: 4px 0 18px;">
             <a href="/comparar/{{ tecnico }}/exportar-excel{% if request.query_params.get('sup') %}?sup={{ request.query_params.get('sup') }}{% endif %}"
                class="botao botao-dourado" style="margin-top:0;">

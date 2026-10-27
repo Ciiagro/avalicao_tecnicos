@@ -1784,6 +1784,19 @@ def ranking_objetivo_coordenador(request: Request, mes: str | None = Query(defau
 # ══════════════════════════════════════════════════════════
 # COORDENADOR — técnicos e avaliações de UM supervisor, no mês escolhido
 # ══════════════════════════════════════════════════════════
+@app.get("/coordenador/buscar-tecnico")
+def buscar_tecnico_coordenador(request: Request, q: str = Query(default="")):
+    if not supervisor_logado(request):
+        return RedirectResponse("/login", status_code=303)
+    if request.session.get("tipo") != "coordenador":
+        raise HTTPException(status_code=403, detail="Acesso restrito ao coordenador geral.")
+    resultados = repositorio.buscar_tecnicos_por_nome(q) if q.strip() else []
+    return templates.TemplateResponse(
+        "buscar_tecnico.html",
+        {"request": request, "q": q, "resultados": resultados},
+    )
+
+
 @app.get("/coordenador/{supervisor}")
 def painel_coordenador_supervisor(request: Request, supervisor: str, mes: str | None = Query(default=None)):
     if not supervisor_logado(request):
@@ -2069,10 +2082,8 @@ def comparar_avaliacoes(request: Request, tecnico: str, sup: str | None = Query(
     eh_coordenador = request.session.get("tipo") == "coordenador"
     if eh_coordenador:
         # Coordenador geral pode ver qualquer técnico, de qualquer supervisor,
-        # desde que informe de qual supervisor é (vem do link do histórico geral).
-        if not sup:
-            raise HTTPException(status_code=400, detail="Supervisor não informado.")
-        supervisor = sup
+        # Sem supervisor informado: mostra as avaliações do técnico de TODOS os supervisores.
+        supervisor = sup or None
         tecnico_real = tecnico
     else:
         supervisor = supervisor_logado_nome
@@ -2081,7 +2092,10 @@ def comparar_avaliacoes(request: Request, tecnico: str, sup: str | None = Query(
         if tecnico_real is None:
             raise HTTPException(status_code=403, detail="Você não pode ver este técnico.")
 
-    lista_avaliacoes = repositorio.avaliacoes_do_tecnico(supervisor, tecnico_real)
+    if supervisor is None:
+        lista_avaliacoes = repositorio.avaliacoes_do_tecnico_todos(tecnico_real)
+    else:
+        lista_avaliacoes = repositorio.avaliacoes_do_tecnico(supervisor, tecnico_real)
     if not lista_avaliacoes:
         return templates.TemplateResponse(
             "comparacao.html",
@@ -2094,6 +2108,9 @@ def comparar_avaliacoes(request: Request, tecnico: str, sup: str | None = Query(
         )
 
     meses, itens, media_valores = avaliacoes.montar_tabela_resumida(lista_avaliacoes)
+    if supervisor is None:
+        # visão de todos os supervisores: cada coluna mostra o mês e QUEM avaliou
+        meses = [f"{a['mes_referencia'].strftime('%m/%Y')} · {' '.join(_nome_limpo(a['supervisor']).split()[:2])}" for a in lista_avaliacoes]
 
     # Dados para o gráfico de evolução (linha do tempo da média final por mês).
     valores_numericos = [float(v) if v not in (None, "") else None for v in media_valores]

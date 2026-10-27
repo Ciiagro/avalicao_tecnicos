@@ -687,6 +687,172 @@ def recusar_solicitacao(solicitacao_id: int, coordenador: str) -> None:
         )
 
 
+# Regra da lista de técnicos de cada supervisor (SEMPRE pelas visitas do mês, igual ao painel):
+#   True  -> SUPERVISOR DE HOJE (o da última visita no SisATeG), IGUAL ao painel de visitas e ao ranking, em todos os meses.
+#   False -> SUPERVISOR DO MÊS (quem estava com o técnico no último dia do mês, pelo vínculo).
+# As avaliações já lançadas nunca somem: ficam no bloco "Já avaliados por este supervisor...".
+USAR_SUPERVISOR_DE_HOJE = True
+
+_CACHE_EQUIPE_HOJE: dict = {}
+
+
+def _chave_sup(nome: str) -> str:
+    """Nome de supervisor comparável: conserta acento quebrado, sem espaço/caixa."""
+    n = (nome or "").replace("JOS&#65533;", "JOSÉ").replace("J&#65533;NIOR", "JÚNIOR")
+    n = n.replace("JOS\ufffd", "JOSÉ").replace("J\ufffdNIOR", "JÚNIOR")
+    return normalizar(n).upper()
+
+
+def equipes_supervisor_de_hoje_no_mes(mes_ref: date) -> dict[str, set]:
+    """
+    {supervisor (chave normalizada): {técnicos}} pela MESMA regra do painel de
+    visitas e do ranking: o supervisor do técnico é o da ÚLTIMA VISITA dele
+    ("supervisor de hoje"). Só entram técnicos que TIVERAM VISITA no mês
+    escolhido (mesma condição do ranking), para não listar quem já saiu.
+
+    É só uma lista ADICIONAL de técnicos para o supervisor avaliar: nada é
+    gravado nem apagado. Se a consulta falhar, devolve vazio e a avaliação
+    segue funcionando só com a regra do vínculo, como antes.
+    """
+    ini = mes_ref.replace(day=1)
+    fim = date(ini.year + (ini.month == 12), (ini.month % 12) + 1, 1)
+    if not USAR_SUPERVISOR_DE_HOJE:
+        return {}
+    import time as _t
+    c = _CACHE_EQUIPE_HOJE.get(ini)
+    if c and _t.time() - c[0] < 300:
+        return c[1]
+    resultado: dict[str, set] = {}
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("""
+                    WITH ult AS (
+                        -- supervisor da ÚLTIMA VISITA do técnico NAQUELE MÊS (igual ao painel de visitas)
+                        SELECT DISTINCT ON (tecnico_responsavel)
+                            tecnico_responsavel AS tecnico, supervisor_atual AS supervisor
+                        FROM public.acompanhamento_mensal_visitas
+                        WHERE tecnico_responsavel IS NOT NULL AND supervisor_atual IS NOT NULL
+                          AND dt_visita_v::date >= :ini AND dt_visita_v::date < :fim
+                        ORDER BY tecnico_responsavel, dt_visita DESC, ctid DESC
+                    ),
+                    mes AS (
+                        SELECT DISTINCT tecnico_responsavel AS tecnico
+                        FROM public.acompanhamento_mensal_visitas
+                        WHERE dt_visita_v::date >= :ini AND dt_visita_v::date < :fim
+                    )
+                    SELECT u.supervisor, u.tecnico
+                    FROM ult u JOIN mes m ON m.tecnico = u.tecnico
+                """),
+                {"ini": ini, "fim": fim},
+            ).fetchall()
+        for r in rows:
+            resultado.setdefault(_chave_sup(r.supervisor), set()).add(r.tecnico)
+    except Exception as _e:
+        print(f"[AVISO] supervisor de hoje nao carregou ({type(_e).__name__}): {_e}")
+        resultado = {}
+
+    # MÊS JÁ FECHADO: o histórico real manda. Cada técnico fica com
+    #   1) quem o AVALIOU no mês; senão
+    #   2) o supervisor do RELATÓRIO do mês (supervisor_tecnico_periodo); senão
+    #   3) o supervisor da ÚLTIMA VISITA do mês (acima).
+    # (As visitas guardam o supervisor de HOJE, então para meses passados não servem sozinhas.)
+    # Mês em andamento continua só pelas visitas. Nada é gravado nem apagado.
+    try:
+        hoje_d = date.today()
+        if resultado and ini < hoje_d.replace(day=1):
+            ultimo_dia = fim - __import__("datetime").timedelta(days=1)
+            tec_vis = {}
+            for ch, tecs in resultado.items():
+                for t in tecs:
+                    tec_vis[normalizar(t).upper()] = (ch, t)
+            tec_final = dict(tec_vis)          # chave do técnico -> (chave do supervisor, nome do técnico)
+            engine = get_engine()
+            with engine.connect() as conn:
+                rel = conn.execute(text("""
+                    SELECT tecnico, supervisor FROM public.supervisor_tecnico_periodo
+                    WHERE dt_inicio <= :ultimo AND dt_fim >= :ini
+                    ORDER BY dt_fim, dt_inicio"""), {"ultimo": ultimo_dia, "ini": ini}).fetchall()
+                ava = conn.execute(text("""
+                    SELECT tecnico, supervisor FROM avaliacoes_tecnicos
+                    WHERE mes_referencia = :ini AND status = 'finalizada' ORDER BY id"""), {"ini": ini}).fetchall()
+            for r in rel:                       # 2) relatório (o mais recente do mês vence)
+                k = normalizar(r.tecnico).upper()
+                tec_final[k] = (_chave_sup(r.supervisor), tec_vis.get(k, (None, r.tecnico))[1])
+            vistos_ava = set()
+            for r in ava:                       # 1) avaliação (vale a primeira lançada)
+                k = normalizar(r.tecnico).upper()
+                if k in vistos_ava:
+                    continue
+                vistos_ava.add(k)
+                tec_final[k] = (_chave_sup(r.supervisor), tec_vis.get(k, (None, r.tecnico))[1])
+            novo: dict[str, set] = {}
+            for k, (ch, nome) in tec_final.items():
+                novo.setdefault(ch, set()).add(nome)
+            resultado = novo
+    except Exception as _e:
+        print(f"[AVISO] historico (relatorio/avaliacao) nao carregou ({type(_e).__name__}): {_e}")
+
+    _CACHE_EQUIPE_HOJE[ini] = (_t.time(), resultado)
+    return resultado
+
+
+def _aplicar_supervisor_de_hoje(sup: str, base: list[str], mes_ref: date) -> list[str]:
+    """
+    Lista final do supervisor no mês, IGUAL ao painel de visitas e ao ranking:
+    o técnico só aparece para o supervisor CONFIRMADO PELA VISITA (o da última
+    visita), e só se teve visita no mês. Troca de vínculo sem visita que a
+    confirme não move o técnico.
+
+    Nada é apagado: avaliações já lançadas e marcações "não avaliar" continuam
+    aparecendo para quem as lançou (tratado em tecnicos_com_status_para_mes /
+    tecnicos_com_avaliacao_para_mes, em bloco separado quando o técnico hoje é
+    de outra equipe).
+
+    Se a consulta das visitas falhar (mapa vazio), usa a lista do vínculo
+    como antes, para a tela nunca ficar vazia por erro.
+    """
+    hoje = equipes_supervisor_de_hoje_no_mes(mes_ref)
+    if not hoje:
+        return sorted(base)
+    return sorted(_unir_sem_duplicar(hoje.get(_chave_sup(sup), set())))
+
+
+def _alinhar_nomes(tecnicos_equipe, *dicionarios):
+    """Reescreve as chaves dos dicionários (avaliações, "não avaliar") com a MESMA grafia do técnico
+    na equipe atual. Evita o técnico aparecer duas vezes (um Pendente e outro Avaliado) só porque
+    o nome tem espaço duplicado ou acento diferente entre as bases."""
+    canon = {normalizar(t).upper(): t for t in sorted(tecnicos_equipe)}
+    saida = []
+    for d in dicionarios:
+        novo = {}
+        for t, v in d.items():
+            novo[canon.get(normalizar(t).upper(), t)] = v
+        saida.append(novo)
+    return saida
+
+
+def _supervisor_hoje_do_tecnico(tecnico: str, mes_ref: date):
+    """Com quem o técnico está hoje (supervisor da última visita), para explicar o bloco
+    'já avaliados por este supervisor, mas hoje na equipe de outro'. None se não souber."""
+    alvo = normalizar(tecnico).upper()
+    for chave, tecs in equipes_supervisor_de_hoje_no_mes(mes_ref).items():
+        for t in tecs:
+            if normalizar(t).upper() == alvo:
+                return chave.title()
+    return None
+
+
+def _unir_sem_duplicar(*grupos) -> list[str]:
+    """Une listas de nomes sem repetir a mesma pessoa; vale a grafia do 1º grupo que a trouxe."""
+    vistos: dict[str, str] = {}
+    for g in grupos:
+        for t in g:
+            vistos.setdefault(normalizar(t).upper(), t)
+    return sorted(vistos.values())
+
+
 def tecnicos_do_supervisor_no_mes(supervisor: str, mes_ref: date):
     """
     Técnicos que este supervisor deve avaliar no mês escolhido (mes_ref).
@@ -762,7 +928,7 @@ def tecnicos_do_supervisor_no_mes(supervisor: str, mes_ref: date):
             {"supervisor": supervisor, "mes_ref": mes_ref},
         ).fetchall()
 
-    return sorted({r.tecnico for r in rows})
+    return _aplicar_supervisor_de_hoje(supervisor, sorted({r.tecnico for r in rows}), mes_ref)
 
 
 def equipes_de_todos_supervisores_no_mes(mes_ref: date) -> dict[str, list[str]]:
@@ -821,6 +987,17 @@ def equipes_de_todos_supervisores_no_mes(mes_ref: date) -> dict[str, list[str]]:
     equipes: dict[str, set] = {}
     for r in rows:
         equipes.setdefault(r.supervisor, set()).add(r.tecnico)
+    # supervisores que existem no vínculo mas não tinham linha neste mês também entram:
+    # a equipe deles vem das visitas do mês (igual ao painel)
+    try:
+        with engine.connect() as conn_s:
+            for r in conn_s.execute(text("SELECT DISTINCT supervisor FROM vinculo_tecnico WHERE supervisor IS NOT NULL")).fetchall():
+                equipes.setdefault(r.supervisor, set())
+    except Exception as _e:
+        print("[AVISO] lista de supervisores do vinculo nao carregou:", str(_e).splitlines()[0])
+    # + técnicos que o painel de visitas mostra hoje para o supervisor (só soma, nunca tira)
+    for sup in list(equipes):
+        equipes[sup] = set(_aplicar_supervisor_de_hoje(sup, sorted(equipes[sup]), mes_ref))
     return {sup: sorted(tecs) for sup, tecs in equipes.items()}
 
 
@@ -832,6 +1009,13 @@ def mapa_tecnico_supervisor_no_mes(mes_ref: date) -> dict[str, str]:
     """
     equipes = equipes_de_todos_supervisores_no_mes(mes_ref)
     mapa: dict[str, str] = {}
+    # 1º: o supervisor de hoje (último a visitar) — igual ao painel de visitas e ao ranking
+    hoje = equipes_supervisor_de_hoje_no_mes(mes_ref)
+    for sup in sorted(equipes):
+        extra = {normalizar(t) for t in hoje.get(_chave_sup(sup), set())}
+        for tec in equipes[sup]:
+            if normalizar(tec) in extra:
+                mapa.setdefault(normalizar(tec), sup)
     for sup in sorted(equipes):
         for tec in equipes[sup]:
             mapa.setdefault(normalizar(tec), sup)
@@ -874,6 +1058,8 @@ def tecnicos_com_status_para_mes(supervisor: str, mes_ref: date):
     status_por_tecnico = {r.tecnico: r.status for r in rows}
 
     nao_avaliar_por_tecnico = obter_nao_avaliar_do_mes(supervisor, mes_ref)
+    avaliacao_id_por_tecnico, status_por_tecnico, nao_avaliar_por_tecnico = _alinhar_nomes(
+        tecnicos_do_mes, avaliacao_id_por_tecnico, status_por_tecnico, nao_avaliar_por_tecnico)
 
     tecnicos = sorted(tecnicos_do_mes | set(avaliacao_id_por_tecnico.keys()) | set(nao_avaliar_por_tecnico.keys()))
 
@@ -1081,6 +1267,46 @@ def avaliacoes_do_tecnico(supervisor: str, tecnico: str):
     return [dict(r) for r in rows]
 
 
+def avaliacoes_do_tecnico_todos(tecnico: str):
+    """Todas as avaliações FINALIZADAS do técnico, de QUALQUER supervisor (mais antiga primeiro).
+    Compara o nome sem acento/espaço/caixa, para achar o técnico mesmo com grafia diferente."""
+    alvo = normalizar(tecnico).upper()
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""SELECT * FROM avaliacoes_tecnicos WHERE status = 'finalizada'
+                    ORDER BY mes_referencia ASC, supervisor ASC;""")
+        ).mappings().fetchall()
+    return [dict(r) for r in rows if normalizar(r["tecnico"]).upper() == alvo]
+
+
+def buscar_tecnicos_por_nome(termo: str):
+    """Procura técnicos pelo nome (parte do nome basta), sem precisar saber o supervisor.
+    Junta quem tem avaliação e quem tem vínculo. Devolve [{tecnico, avaliacoes, supervisores}]."""
+    alvo = normalizar(termo).upper()
+    if not alvo:
+        return []
+    engine = get_engine()
+    with engine.connect() as conn:
+        aval = conn.execute(text("""SELECT tecnico, supervisor FROM avaliacoes_tecnicos WHERE status = 'finalizada'""")).fetchall()
+        vinc = conn.execute(text("""SELECT DISTINCT tecnico FROM vinculo_tecnico""")).fetchall()
+    achados: dict[str, dict] = {}
+    for r in vinc:
+        k = normalizar(r.tecnico).upper()
+        if alvo in k:
+            achados.setdefault(k, {"tecnico": r.tecnico, "avaliacoes": 0, "supervisores": set()})
+    for r in aval:
+        k = normalizar(r.tecnico).upper()
+        if alvo in k:
+            d = achados.setdefault(k, {"tecnico": r.tecnico, "avaliacoes": 0, "supervisores": set()})
+            d["avaliacoes"] += 1
+            d["supervisores"].add(r.supervisor)
+    return sorted(
+        ({"tecnico": d["tecnico"], "avaliacoes": d["avaliacoes"], "supervisores": len(d["supervisores"])} for d in achados.values()),
+        key=lambda d: d["tecnico"],
+    )
+
+
 def resumo_supervisores_para_mes(mes_ref: date):
     """
     Visão do coordenador: para cada supervisor, quantos técnicos ele tem,
@@ -1135,35 +1361,64 @@ def resumo_supervisores_para_mes(mes_ref: date):
 
     pares_nao_avaliar = {(r.supervisor, r.tecnico) for r in nao_avaliar_rows}
 
+    # Mesma pessoa pode estar escrita de dois jeitos (ex.: JOSÉ x JOS&#65533;). Agrupamos pela chave
+    # limpa e mostramos a grafia usada nas avaliações (é a que as telas do supervisor usam).
+    nome_exibir = {}
+    for r in avaliados:
+        nome_exibir.setdefault(_chave_sup(r.supervisor), r.supervisor)
+    for r in nao_avaliar_rows:
+        nome_exibir.setdefault(_chave_sup(r.supervisor), r.supervisor)
+    for sup in supervisores_com_vinculo:
+        nome_exibir.setdefault(_chave_sup(sup), sup)
+
     avaliados_por_supervisor = {}
     for r in avaliados:
-        avaliados_por_supervisor.setdefault(r.supervisor, []).append(r)
+        avaliados_por_supervisor.setdefault(_chave_sup(r.supervisor), []).append(r)
 
     resumo = {}
 
-    # União: quem está vinculado manualmente (fonte principal) + quem já
-    # tem avaliação lançada nesse mês mas cujo vínculo não bateu certinho
-    # dentro do período (evita que o técnico "suma" da contagem só por
-    # isso, mesmo cuidado já tomado em tecnicos_com_status_para_mes).
-    # A equipe de cada supervisor É A DO MÊS ESCOLHIDO (mesma regra da tela de
-    # técnicos do supervisor): quem estava com ele no último dia do mês.
-    # Quem chegou depois não entra; quem saiu depois continua entrando.
-    pares_vinculo = set()
+    # O TOTAL de cada supervisor = só a equipe dele no mês (igual ao painel de visitas e à tela
+    # do supervisor). "Avaliado" = técnico da equipe que já tem avaliação finalizada no mês,
+    # feita por este supervisor OU por outro (ex.: trocou de equipe). Avaliações de técnicos que
+    # hoje são de outra equipe continuam guardadas (caixa recolhida na tela do supervisor e
+    # na busca do coordenador); só não entram nesta contagem.
     _equipes_mes = equipes_de_todos_supervisores_no_mes(mes_ref)
-    for sup in supervisores_com_vinculo:
-        for t in _equipes_mes.get(sup, []):
-            pares_vinculo.add((sup, t))
-    pares_avaliados = {(a.supervisor, a.tecnico) for a in avaliados}
+    _quem_avaliou = set()          # (chave do supervisor, técnico normalizado)
+    _avaliado_por_alguem = set()   # técnico normalizado
+    for a_ in avaliados:
+        k = normalizar(a_.tecnico).upper()
+        _quem_avaliou.add((_chave_sup(a_.supervisor), k))
+        _avaliado_por_alguem.add(k)
+    _nao_aval = {(_chave_sup(r.supervisor), normalizar(r.tecnico).upper()) for r in nao_avaliar_rows}
+    _nao_aval_alguem = {normalizar(r.tecnico).upper() for r in nao_avaliar_rows}
+    _descred = descredenciados_ate_o_mes(mes_ref)
 
-    # Avaliações já lançadas e marcações "não avaliar" do mês nunca somem
-    # da contagem (preserva o histórico), mesmo sem vínculo hoje.
-    for supervisor, tecnico in (pares_vinculo | pares_avaliados | pares_nao_avaliar):
-        item = resumo.setdefault(supervisor, {"supervisor": supervisor, "total": 0, "avaliados": 0, "nao_avaliar": 0})
-        item["total"] += 1
-        if (supervisor, tecnico) in pares_avaliados:
-            item["avaliados"] += 1
-        if (supervisor, tecnico) in pares_nao_avaliar:
-            item["nao_avaliar"] += 1
+    _time_por_chave = {}
+    for sup, tecs in _equipes_mes.items():
+        d = _time_por_chave.setdefault(_chave_sup(sup), {})
+        for t in tecs:
+            d.setdefault(normalizar(t).upper(), t)
+    # quem o supervisor avaliou ou justificou NO MÊS pertence à equipe dele naquele mês
+    for a_ in avaliados:
+        _time_por_chave.setdefault(_chave_sup(a_.supervisor), {}).setdefault(normalizar(a_.tecnico).upper(), a_.tecnico)
+    for r_ in nao_avaliar_rows:
+        _time_por_chave.setdefault(_chave_sup(r_.supervisor), {}).setdefault(normalizar(r_.tecnico).upper(), r_.tecnico)
+    for ch, d in _time_por_chave.items():
+        if not d:
+            continue   # sem técnicos neste mês: só entra se tiver avaliação lançada no mês (abaixo)
+        item = resumo.setdefault(ch, {"supervisor": nome_exibir.get(ch, ch), "total": 0, "avaliados": 0, "nao_avaliar": 0})
+        for k in d:
+            if (ch, k) not in _quem_avaliou and k in _avaliado_por_alguem:
+                continue   # já avaliado neste mês por outro supervisor: só entra aqui no mês seguinte
+            item["total"] += 1
+            if (ch, k) in _quem_avaliou or k in _avaliado_por_alguem:
+                item["avaliados"] += 1
+            elif (ch, k) in _nao_aval or k in _nao_aval_alguem or k in _descred:
+                item["nao_avaliar"] += 1
+
+    # Supervisor que só tem avaliações lançadas no mês (sem equipe) continua na lista, com total 0.
+    for ch in set(avaliados_por_supervisor) | {c for c, _ in _nao_aval}:
+        resumo.setdefault(ch, {"supervisor": nome_exibir.get(ch, ch), "total": 0, "avaliados": 0, "nao_avaliar": 0})
 
     for supervisor, item in resumo.items():
         registros = avaliados_por_supervisor.get(supervisor, [])
@@ -1370,6 +1625,40 @@ def resumo_geral_supervisores():
     return resumo_supervisores_para_mes(mes_ref), mes_ref
 
 
+def descredenciados_ate_o_mes(mes_ref: date) -> dict[str, date]:
+    """{nome normalizado: data do descredenciamento} dos técnicos DESATIVADOS (vínculo encerrado com motivo
+    "Técnico desativado...") até o último dia do mês escolhido. Quem foi descredenciado DEPOIS do mês
+    continua devendo avaliação naquele mês, então não entra. Quem voltou a ter vínculo ativo não entra.
+    Só leitura: nada é gravado nem apagado."""
+    ini = mes_ref.replace(day=1)
+    fim_mes = date(ini.year + (ini.month == 12), (ini.month % 12) + 1, 1)  # 1º dia do mês seguinte
+    saida: dict[str, date] = {}
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            rows = conn.execute(text("""
+                SELECT tecnico, data_desvinculacao, motivo_desvinculacao
+                FROM vinculo_tecnico
+            """)).fetchall()
+        ativos = set()
+        for r in rows:
+            if r.data_desvinculacao is None:
+                ativos.add(normalizar(r.tecnico).upper())
+        for r in rows:
+            k = normalizar(r.tecnico).upper()
+            if r.data_desvinculacao is None or k in ativos:
+                continue
+            if not (r.motivo_desvinculacao or "").startswith("Técnico desativado"):
+                continue
+            d = r.data_desvinculacao
+            d = d.date() if hasattr(d, "date") else d
+            if d < fim_mes and (k not in saida or d > saida[k]):
+                saida[k] = d
+    except Exception as e:
+        print("[AVISO] descredenciados nao carregaram:", str(e).splitlines()[0])
+    return saida
+
+
 def tecnicos_com_avaliacao_para_mes(supervisor: str, mes_ref: date):
     """
     Como tecnicos_com_status_para_mes, mas também traz o id e a média final
@@ -1399,14 +1688,48 @@ def tecnicos_com_avaliacao_para_mes(supervisor: str, mes_ref: date):
     avaliacoes_por_tecnico = {r.tecnico: r for r in rows if r.status == "finalizada"}
 
     nao_avaliar_por_tecnico = obter_nao_avaliar_do_mes(supervisor, mes_ref)
+    avaliacoes_por_tecnico, nao_avaliar_por_tecnico = _alinhar_nomes(
+        tecnicos_do_mes, avaliacoes_por_tecnico, nao_avaliar_por_tecnico)
 
     tecnicos = sorted(tecnicos_do_mes | set(avaliacoes_por_tecnico.keys()) | set(nao_avaliar_por_tecnico.keys()))
+
+    # Técnico da equipe (pelas visitas) ainda sem avaliação deste supervisor no mês,
+    # mas que JÁ foi avaliado por OUTRO supervisor nesse mês (ex.: trocou de equipe):
+    # mostramos "Avaliado por X" em vez de "Pendente". Nada é apagado nem alterado.
+    outros_avaliaram = {}
+    try:
+        with engine.connect() as conn:
+            rows_o = conn.execute(
+                text("""SELECT id, tecnico, supervisor, nota_final FROM avaliacoes_tecnicos
+                        WHERE mes_referencia = :mes_ref AND status = 'finalizada' AND supervisor <> :supervisor
+                        ORDER BY id DESC;"""),
+                {"supervisor": supervisor, "mes_ref": mes_ref},
+            ).fetchall()
+        for r in rows_o:
+            outros_avaliaram.setdefault(normalizar(r.tecnico).upper(), r)
+    except Exception as e:
+        print("[AVISO] avaliacoes de outros supervisores nao carregaram:", str(e).splitlines()[0])
+
+    outros_motivos = {}
+    try:
+        with engine.connect() as conn:
+            for r in conn.execute(
+                text("""SELECT tecnico, supervisor, observacao FROM nao_avaliar_tecnico_mes
+                        WHERE mes_referencia = :mes_ref AND supervisor <> :supervisor ORDER BY id DESC;"""),
+                {"supervisor": supervisor, "mes_ref": mes_ref},
+            ).fetchall():
+                outros_motivos.setdefault(normalizar(r.tecnico).upper(), r)
+    except Exception as e:
+        print("[AVISO] motivos de outros supervisores nao carregaram:", str(e).splitlines()[0])
+
+    descred = descredenciados_ate_o_mes(mes_ref)
 
     resultado = []
     melhor_media = None
     for t in tecnicos:
         av = avaliacoes_por_tecnico.get(t)
         media = av.nota_final if av else None
+        ou = outros_avaliaram.get(normalizar(t).upper()) if (av is None and t in tecnicos_do_mes and t not in nao_avaliar_por_tecnico) else None
         if media is not None and (melhor_media is None or media > melhor_media):
             melhor_media = media
         resultado.append({
@@ -1416,25 +1739,49 @@ def tecnicos_com_avaliacao_para_mes(supervisor: str, mes_ref: date):
             "nota_final": media,
             "nao_avaliar": t in nao_avaliar_por_tecnico,
             "observacao_nao_avaliar": nao_avaliar_por_tecnico.get(t),
+            "descredenciado_em": (descred[normalizar(t).upper()].strftime("%d/%m/%Y")
+                                  if (av is None and not ou and t in tecnicos_do_mes and t not in nao_avaliar_por_tecnico
+                                      and normalizar(t).upper() in descred
+                                      and not outros_motivos.get(normalizar(t).upper())) else None),
+            "motivo_outro": (outros_motivos.get(normalizar(t).upper()) if (av is None and not ou and t in tecnicos_do_mes and t not in nao_avaliar_por_tecnico) else None),
+            "avaliado_por": ou.supervisor if ou else None,
+            "avaliado_por_id": ou.id if ou else None,
+            "avaliado_por_nota": ou.nota_final if ou else None,
+            # True = o técnico está na equipe atual do supervisor (igual ao painel de visitas).
+            # False = já foi avaliado/marcado por este supervisor, mas hoje é de outra equipe
+            # (a avaliação continua guardada e aparece, só que em bloco separado).
+            "equipe_atual": (t in tecnicos_do_mes) or av is not None or (t in nao_avaliar_por_tecnico),
+            "supervisor_hoje": _supervisor_hoje_do_tecnico(t, mes_ref) if t not in tecnicos_do_mes else None,
+            "fora_das_visitas": t not in tecnicos_do_mes,
         })
 
-    for item in resultado:
-        item["melhor"] = melhor_media is not None and item["nota_final"] == melhor_media
+    # Técnico já avaliado NO MÊS por outro supervisor pertence a esse outro no mês; só entra
+    # na equipe deste supervisor no mês seguinte. (A avaliação continua guardada com quem a fez.)
+    resultado = [it for it in resultado if not it.get("avaliado_por")]
 
-    # Ordena do melhor para o pior (maior média primeiro); quem ainda não foi
-    # avaliado (pendente) vai para o final, em ordem alfabética; quem foi
-    # marcado como "não avaliar" vai depois dos pendentes, também alfabético.
-    resultado.sort(key=lambda item: (
-        item["nao_avaliar"],
-        item["nota_final"] is None,
-        -(item["nota_final"] or 0),
-        item["tecnico"],
-    ))
+    # Cada bloco (equipe atual / avaliados de outra equipe) tem o seu próprio
+    # destaque do melhor e a sua própria posição.
+    final = []
+    for grupo in (True, False):
+        itens = [it for it in resultado if it["equipe_atual"] == grupo]
+        medias = [it["nota_final"] for it in itens if it["nota_final"] is not None]
+        melhor_g = max(medias) if medias else None
+        for it in itens:
+            it["melhor"] = melhor_g is not None and it["nota_final"] == melhor_g
+        # Ordena do melhor para o pior (maior média primeiro); quem ainda não foi
+        # avaliado (pendente) vai para o final, em ordem alfabética; quem foi
+        # marcado como "não avaliar" vai depois dos pendentes, também alfabético.
+        itens.sort(key=lambda it: (
+            it["nao_avaliar"],
+            it["nota_final"] is None,
+            -(it["nota_final"] or 0),
+            it["tecnico"],
+        ))
+        for k, it in enumerate(itens):
+            it["posicao"] = k + 1 if it["nota_final"] is not None else None
+        final.extend(itens)
 
-    for i, item in enumerate(resultado):
-        item["posicao"] = i + 1 if item["nota_final"] is not None else None
-
-    return resultado
+    return final
 
 
 # ══════════════════════════════════════════════════════════

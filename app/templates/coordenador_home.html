@@ -47,6 +47,12 @@
 
         <p class="subtitulo">Escolha o que você quer ver ou fazer.</p>
 
+        <form action="/coordenador/buscar-tecnico" method="get" style="display:flex; gap:8px; margin:0 0 20px; max-width:560px;">
+            <input name="q" placeholder="Buscar técnico pelo nome (ex.: Alexandre) e ver as avaliações dele"
+                   style="flex:1; padding:10px 12px; border:1px solid #cfc7b5; border-radius:8px; font-size:0.95rem;">
+            <button type="submit" class="botao" style="margin-top:0;">Buscar</button>
+        </form>
+
         <h2 class="acessos-titulo">Acessos rápidos</h2>
         <div class="grade-home">
             <a href="/coordenador/cadastros" class="cartao-mes">

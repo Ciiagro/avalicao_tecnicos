@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Buscar técnico</title>
+    <link rel="stylesheet" href="/static/style.css?v=5">
+</head>
+<body>
+    <div class="container">
+        <img src="/static/logo_sistema.png" alt="Logo" class="logo-institucional">
+        <div class="top-bar">
+            <h1>Buscar técnico</h1>
+            <a href="/coordenador">← Voltar</a>
+        </div>
+        <p class="subtitulo">Digite parte do nome do técnico. Você não precisa saber quem é o supervisor.</p>
+        <form action="/coordenador/buscar-tecnico" method="get" style="display:flex; gap:8px; margin:0 0 18px;">
+            <input name="q" value="{{ q }}" placeholder="Ex.: Alexandre" autofocus
+                   style="flex:1; padding:10px 12px; border:1px solid #cfc7b5; border-radius:8px; font-size:1rem;">
+            <button type="submit" class="botao" style="margin-top:0;">Buscar</button>
+        </form>
+        {% if q and not resultados %}
+            <p>Nenhum técnico encontrado com "{{ q }}".</p>
+        {% endif %}
+        <ul class="lista-tecnicos">
+            {% for r in resultados %}
+            <li>
+                <span>{{ r.tecnico }}
+                    <div style="font-size:0.78rem; color:#656058; margin-top:2px;">
+                        {% if r.avaliacoes %}{{ r.avaliacoes }} avaliação(ões) de {{ r.supervisores }} supervisor(es){% else %}Ainda sem avaliações finalizadas{% endif %}
+                    </div>
+                </span>
+                <span style="display:flex; align-items:center; gap:12px;">
+                    <a href="/comparar/{{ r.tecnico|urlencode }}" style="font-weight:600;">📈 Avaliações</a>
+                    <a href="/tecnicos/{{ r.tecnico|urlencode }}" style="font-weight:600;">🗂 Histórico de vínculos</a>
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>

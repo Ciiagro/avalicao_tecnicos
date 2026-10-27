@@ -40,14 +40,20 @@
         </div>
         {% endif %}
 
-        <ul class="lista-tecnicos">
-            {% for t in tecnicos %}
+        {% macro item(t) %}
             <li{% if t.melhor %} style="border: 2px solid #d4af37; background:#fffdf5;"{% endif %}>
                 <span>
                     {% if t.posicao == 1 %}🥇{% elif t.posicao == 2 %}🥈{% elif t.posicao == 3 %}🥉{% elif t.posicao %}{{ t.posicao }}º{% endif %}
                     &nbsp;{{ t.tecnico }}
+                    {% if t.fora_das_visitas and t.supervisor_hoje %}
+                    <div style="font-size:0.78rem; color:#656058; margin-top:2px;">Hoje com: {{ t.supervisor_hoje }}</div>
+                    {% endif %}
                     {% if t.nao_avaliar %}
                     <div style="font-size:0.78rem; color:#8a6d3b; margin-top:2px;">🚫 Não avaliado neste mês — motivo do supervisor: "{{ t.observacao_nao_avaliar }}"</div>
+                    {% elif t.motivo_outro %}
+                    <div style="font-size:0.78rem; color:#8a6d3b; margin-top:2px;">🚫 Não avaliado neste mês — motivo de {{ t.motivo_outro.supervisor|nome_limpo }}: "{{ t.motivo_outro.observacao }}"</div>
+                    {% elif t.descredenciado_em %}
+                    <div style="font-size:0.78rem; color:#8a6d3b; margin-top:2px;">🚫 Não avaliado neste mês — técnico descredenciado em {{ t.descredenciado_em }}</div>
                     {% endif %}
                 </span>
                 <span style="display:flex; align-items:center; gap:10px;">
@@ -56,17 +62,43 @@
                         <a class="status avaliado" style="text-decoration:none;" href="/minhas-avaliacoes/{{ t.avaliacao_id }}">
                             ✔ Avaliado{% if t.nota_final is not none %} ({{ t.nota_final }}){% endif %}
                         </a>
-                    {% elif t.nao_avaliar %}
+                    {% elif t.avaliado_por %}
+                        <a class="status avaliado" style="text-decoration:none;" href="/minhas-avaliacoes/{{ t.avaliado_por_id }}">
+                            ✔ Avaliado por {{ t.avaliado_por|nome_limpo }}{% if t.avaliado_por_nota is not none %} ({{ t.avaliado_por_nota }}){% endif %}
+                        </a>
+                    {% elif t.nao_avaliar or t.motivo_outro or t.descredenciado_em %}
                         <span class="status" style="background:#f3e8d6; color:#8a6d3b;">Não avaliado — com motivo</span>
                     {% else %}
                         <span class="status pendente">Pendente</span>
                     {% endif %}
                 </span>
             </li>
+        {% endmacro %}
+
+        {% set da_equipe = tecnicos|selectattr('equipe_atual')|list %}
+        {% set de_fora = tecnicos|rejectattr('equipe_atual')|list %}
+
+        <ul class="lista-tecnicos">
+            {% for t in da_equipe %}
+            {{ item(t) }}
             {% else %}
-            <p>Nenhum técnico vinculado a este supervisor foi encontrado na base.</p>
+            {% if not de_fora %}<p>Nenhum técnico vinculado a este supervisor foi encontrado na base.</p>{% endif %}
             {% endfor %}
         </ul>
+
+        {% if de_fora %}
+        <details style="margin-top:18px; background:#f3efe6; border:1px dashed #cfc7b5; border-radius:10px; padding:10px 14px;">
+            <summary style="cursor:pointer; font-size:0.85rem; color:#656058; font-weight:600;">
+                Avaliações guardadas de técnicos que hoje estão em outra equipe ({{ de_fora|length }})
+            </summary>
+            <div style="font-size:0.78rem; color:#8a8579; margin:6px 0 10px;">Nada foi perdido. Estes técnicos não contam na equipe deste supervisor neste mês.</div>
+            <ul class="lista-tecnicos">
+                {% for t in de_fora %}
+                {{ item(t) }}
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
     </div>
 </body>
 </html>
