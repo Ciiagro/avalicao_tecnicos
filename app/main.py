@@ -112,6 +112,36 @@ def logout(request: Request):
 
 
 # ══════════════════════════════════════════════════════════
+# ENTRADA DIRETA VINDA DO PORTAL DA ATeG (sem pedir a senha de novo)
+# O portal assina "login + horário" com o segredo SSO_SECRET (o mesmo nos dois sistemas). O link vale 2 minutos.
+# ══════════════════════════════════════════════════════════
+@app.get("/sso")
+def entrada_pelo_portal(request: Request, t: str = ""):
+    import base64, hashlib, hmac, time as _t
+    segredo = os.getenv("SSO_SECRET", "")
+    try:
+        corpo, assinatura = t.split(".", 1)
+        esperado = hmac.new(segredo.encode(), corpo.encode(), hashlib.sha256).hexdigest()
+        if not segredo or not hmac.compare_digest(assinatura, esperado):
+            raise ValueError("assinatura")
+        dados = json.loads(base64.urlsafe_b64decode(corpo + "=" * (-len(corpo) % 4)))
+        if abs(_t.time() - float(dados["t"])) > 120:
+            raise ValueError("expirado")
+        usuario = auth.buscar_usuario(str(dados["l"]))
+        if usuario is None:
+            raise ValueError("usuario")
+    except Exception:
+        return RedirectResponse("/login", status_code=303)
+
+    request.session["supervisor"] = usuario.supervisor
+    request.session["login"] = usuario.login
+    request.session["tipo"] = usuario.tipo
+    if usuario.precisa_trocar_senha:
+        return RedirectResponse("/trocar-senha", status_code=303)
+    return RedirectResponse("/coordenador" if usuario.tipo == "coordenador" else "/", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════
 # TROCAR SENHA (obrigatório no primeiro acesso)
 # ══════════════════════════════════════════════════════════
 @app.get("/trocar-senha")
